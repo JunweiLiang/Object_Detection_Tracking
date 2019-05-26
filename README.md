@@ -28,9 +28,9 @@ We utilize state-of-the-art object deteciton and tracking algorithm in surveilla
 </div>
 
 ## Dependencies
-	The code is originally written for Tensorflow v1.10 with Python 2.7 but it works on v1.13.1, too. Note that I didn't change the code for v1.13.1 instead I just disable Tensorflow warnings and logging.
+The code is originally written for Tensorflow v1.10 with Python 2.7 but it works on v1.13.1, too. Note that I didn't change the code for v1.13.1 instead I just disable Tensorflow warnings and logging.
 
-	Other dependencies: numpy; scipy; sklearn; cv2
+Other dependencies: numpy; scipy; sklearn; cv2
 
 ## Code Overview
 - `obj_detect.py`: Inference code for object detection.
