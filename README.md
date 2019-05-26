@@ -1,6 +1,6 @@
 # CMU Object Detection & Tracking for Surveillance Video Activity Detection
 
-This repository contains the code and models for object detection and tracking from the CMU [DIVA](https://www.iarpa.gov/index.php/research-programs/diva) system. Our system (INF & MUDSML) achieves the best performance on the ActEv (leaderboard)[https://actev.nist.gov/prizechallenge#tab_leaderboard]. 
+This repository contains the code and models for object detection and tracking from the CMU [DIVA](https://www.iarpa.gov/index.php/research-programs/diva) system. Our system (INF & MUDSML) achieves the best performance on the ActEv [leaderboard](https://actev.nist.gov/prizechallenge#tab_leaderboard). 
 
 If you find this code useful in your research then please cite
 
@@ -33,10 +33,12 @@ We utilize state-of-the-art object deteciton and tracking algorithm in surveilla
 	Other dependencies: numpy; scipy; sklearn; cv2
 
 ## Code Overview
+- `obj_detect.py`: Inference code for object detection.
+- `obj_detect_tracking.py`: Inference code for object detection & tracking.
 
 
 ## Inferencing
-1. First download some test videos and the v3 model:
+1. First download some test videos and the v3 model (v4-v6 models are un-verified models as we don't have a test set with ground truth):
 ```
 $ wget https://aladdin-eax.inf.cs.cmu.edu/shares/diva_obj_detect_models/models/v1-val_testvideos.tgz
 $ tar -zxvf v1-val_testvideos.tgz
@@ -109,7 +111,7 @@ These are the models you can use for inferencing. The original ActEv annotations
   <tr>
   	<td colspan="6">
   		<a href="https://aladdin-eax.inf.cs.cmu.edu/shares/diva_obj_detect_models/models/obj_v3_model.tgz">Object v3</a>
-  	: Trained on v1-train</td>
+  	: Trained on v1-train, Dilated CNN</td>
   </tr>
   <tr>
     <td>Eval on v1-val</td>
@@ -137,8 +139,104 @@ These are the models you can use for inferencing. The original ActEv annotations
   </tr>
 </table>
 
+<table>
+  <tr>
+  	<td colspan="6">
+  		<a href="https://aladdin-eax.inf.cs.cmu.edu/shares/diva_obj_detect_models/models/obj_v4_model.tgz">Object v4</a>
+  	: Trained on v1-train & v1-val, Dilated CNN, Class-agnostic</td>
+  </tr>
+  <tr>
+    <td>Eval on v1-val</td>
+    <td>Person</td>
+    <td>Prop</td>
+    <td>Push_Pulled_Object</td>
+    <td>Vehicle</td>
+    <td>Mean</td>
+  </tr>
+  <tr>
+    <td>AP</td>
+    <td>0.961</td>
+    <td>0.960</td>
+    <td>0.971</td>
+    <td>0.985</td>
+    <td>0.969</td>
+  </tr>
+  <tr>
+    <td>AR</td>
+    <td>0.979</td>
+    <td>0.984</td>
+    <td>0.989</td>
+    <td>0.985</td>
+    <td>0.984</td>
+  </tr>
+</table>
+
+<table>
+  <tr>
+  	<td colspan="6">
+  		<a href="https://aladdin-eax.inf.cs.cmu.edu/shares/diva_obj_detect_models/models/obj_v5_model.tgz">Object v5</a>
+  	: Trained on v1-train & v1-val, Dilated CNN, Class-agnostic</td>
+  </tr>
+  <tr>
+    <td>Eval on v1-val</td>
+    <td>Person</td>
+    <td>Prop</td>
+    <td>Push_Pulled_Object</td>
+    <td>Vehicle</td>
+    <td>Mean</td>
+  </tr>
+  <tr>
+    <td>AP</td>
+    <td>0.969</td>
+    <td>0.981</td>
+    <td>0.985</td>
+    <td>0.988</td>
+    <td>0.981</td>
+  </tr>
+  <tr>
+    <td>AR</td>
+    <td>0.983</td>
+    <td>0.994</td>
+    <td>0.995</td>
+    <td>0.989</td>
+    <td>0.990</td>
+  </tr>
+</table>
+
+<table>
+  <tr>
+  	<td colspan="6">
+  		<a href="https://aladdin-eax.inf.cs.cmu.edu/shares/diva_obj_detect_models/models/obj_v6_model.tgz">Object v6</a>
+  	: Trained on v1-train & v1-val, Squeeze-Excitation CNN, Class-agnostic</td>
+  </tr>
+  <tr>
+    <td>Eval on v1-val</td>
+    <td>Person</td>
+    <td>Prop</td>
+    <td>Push_Pulled_Object</td>
+    <td>Vehicle</td>
+    <td>Mean</td>
+  </tr>
+  <tr>
+    <td>AP</td>
+    <td>0.973</td>
+    <td>0.986</td>
+    <td>0.990</td>
+    <td>0.987</td>
+    <td>0.984</td>
+  </tr>
+  <tr>
+    <td>AR</td>
+    <td>0.984</td>
+    <td>0.994</td>
+    <td>0.996</td>
+    <td>0.988</td>
+    <td>0.990</td>
+  </tr>
+</table>
+
 ## Other things I have tried
-These are my experiences with working on this (surveillance dataset)[https://actev.nist.gov/]:
+These are my experiences with working on this [surveillance dataset](https://actev.nist.gov/):
 1. FPN provides significant improvement over non-FPN backbone;
 2. Dilated CNN in backbone also helps;
 3. Cascade RCNN doesn't help (IOU=0.5). I'm using IOU=0.5 in my evaluation since the original annotations are not "tight" bounding boxes.
