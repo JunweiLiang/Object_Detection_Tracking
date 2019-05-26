@@ -52,13 +52,17 @@ $ tar -zxvf obj_v3_model.tgz
 
 2. Run object detection on the test videos
 ```
-$ python obj_detect.py --model_path obj_v3_model --version 3 --video_dir v1-val_testvideos --video_lst_file v1-val_testvideos.lst --out_dir test_json_out --frame_gap 1 --visualize --vis_path test_vis_out --get_box_feat --box_feat_path test_box_feat_out
+$ python obj_detect.py --model_path obj_v3_model --version 3 --video_dir v1-val_testvideos \
+--video_lst_file v1-val_testvideos.lst --out_dir test_json_out --frame_gap 1 --visualize \
+--vis_path test_vis_out --get_box_feat --box_feat_path test_box_feat_out
 ```
 The object detection output for each frame will be in `test_json_out/` and in COCO format. The visualization frames will be in `test_vis_out/`. The ROI features will be in `test_box_feat_out/`. Remove `--visualize  --vis_path test_vis_out` and `--get_box_feat --box_feat_path test_box_feat_out` if you only want the json files.
 
 3. Run object detection & tracking on the test videos
 ```
-$ python obj_detect_tracking.py --model_path obj_v3_model --version 3 --video_dir v1-val_testvideos --video_lst_file v1-val_testvideos.lst --out_dir test_json_out --frame_gap 1 --get_tracking --tracking_dir test_track_out
+$ python obj_detect_tracking.py --model_path obj_v3_model --version 3 --video_dir v1-val_testvideos \
+--video_lst_file v1-val_testvideos.lst --out_dir test_json_out --frame_gap 1 --get_tracking \
+--tracking_dir test_track_out
 ```
 The tracking results will be in `test_track_out/` and in MOTChallenge format. To visualize the tracking results:
 ```
