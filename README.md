@@ -1,6 +1,6 @@
 # CMU Object Detection & Tracking for Surveillance Video Activity Detection
 
-This repository contains the code and models for object detection and tracking from the CMU [DIVA](https://www.iarpa.gov/index.php/research-programs/diva) system. Our system (INF & MUDSML) achieves the best performance on the ActEv [leaderboard](https://actev.nist.gov/prizechallenge#tab_leaderboard). 
+This repository contains the code and models for object detection and tracking from the CMU [DIVA](https://www.iarpa.gov/index.php/research-programs/diva) system. Our system (INF & MUDSML) achieves the **best performance** on the ActEv [leaderboard](https://actev.nist.gov/prizechallenge#tab_leaderboard). 
 
 If you find this code useful in your research then please cite
 
@@ -35,6 +35,9 @@ We utilize state-of-the-art object deteciton and tracking algorithm in surveilla
 ## Code Overview
 - `obj_detect.py`: Inference code for object detection.
 - `obj_detect_tracking.py`: Inference code for object detection & tracking.
+- `models.py`: Main model definition.
+- `nn.py`: Some layer definitions.
+- `main.py`: Code I used for training and testing experiments.
 
 
 ## Inferencing
