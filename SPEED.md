@@ -10,7 +10,8 @@ Machine 2: 3 GTX 1080 TI + 1 TITAN X, E5, nvme
 
 Each run is conducted without other programs running.
 
-| Machine 1    | Run #1  |            |            |             |                         |             |
+Machine 1
+| Run #1    |   |            |            |             |                         |             |
 |---------|---------|------------|------------|-------------|-------------------------|-------------|
 | RunType | # Image | Image Size | # GPU Used | runtime (s) | GPU Average Utilization | Per GPU FPS |
 | 1       | 206268  | 1920x1080  | 2          | 41190.9     | 65.3%                   | 2.50        |
@@ -25,8 +26,9 @@ Each run is conducted without other programs running.
 | 2       | 206268  | 1920x1080  | 1          |             |                         |             |
 | 3       | 206268  | 1920x1080  | 1          |             |                         |             |
 
-
-| Machine 2    | Run #1  |            |            |             |                         |             |
+Machine 2
+| Run #1    |   |            |            |             |                         |             |
+|---------|---------|------------|------------|-------------|-------------------------|-------------|
 | Summary | # Image | Image Size | # GPU Used | runtime (s) | GPU Average Utilization | Per GPU FPS |
 | 2       | 206268  | 1920x1080  | 4          | 29354.4     | 33.8%                   | 1.76        |
 | 3       | 206268  | 1920x1080  | 4          | 26454.0     | 23.5%                   | 1.95        |
