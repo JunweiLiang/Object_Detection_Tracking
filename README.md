@@ -64,7 +64,6 @@ $ python obj_detect_tracking.py --model_path obj_v3_model --version 3 --video_di
 --video_lst_file v1-val_testvideos.lst --out_dir test_json_out --frame_gap 1 --get_tracking \
 --tracking_dir test_track_out
 ```
-You can also add `--is_load_from_pb` and change '--model_path' to point to a frozen graph to boost the inferencing speed a bit.
 The tracking results will be in `test_track_out/` and in MOTChallenge format. To visualize the tracking results:
 ```
 $ ls $PWD/v1-val_testvideos/* > v1-val_testvideos.abs.lst
