@@ -1655,8 +1655,6 @@ def initialize(load,load_best,config,sess):
 		ckpt = tf.train.get_checkpoint_state(load_from)
 		if ckpt and ckpt.model_checkpoint_path:
 			loadpath = ckpt.model_checkpoint_path
-			#if config.is_pack_model:
-			#	saver = tf.train.import_meta_graph(loadpath + ".meta", clear_devices=True)
 			saver.restore(sess, loadpath)
 			print "Model:"
 			print "\tloaded %s"%loadpath
