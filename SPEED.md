@@ -48,7 +48,7 @@ Machine 2
 | 3       | 206268  | 1920x1080  | 1          |             |                         |             |
 | 3       | 206268  | 1920x1080  | 4 / 1*     |             |                         |             |
 
-TODO: Add input queues mechanism to improve GPU utilization.
+TODO: Add input queue mechanism to improve GPU utilization.
 
 | RunType |                                                                         |
 |---------|-------------------------------------------------------------------------|
