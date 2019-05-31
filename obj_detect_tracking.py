@@ -46,6 +46,8 @@ def get_args():
 
 	parser.add_argument("--threshold_conf", default=0.0001, type=float)
 
+	parser.add_argument("--is_load_from_pb", action="store_true", help="load from a frozen graph")
+
 	# ------ for box feature extraction
 	parser.add_argument("--get_box_feat", action="store_true",
 						help="this will generate (num_box, 256, 7, 7) tensor for each frame")
@@ -129,6 +131,10 @@ def get_args():
 	args = parser.parse_args()
 
 	assert args.gpu == args.im_batch_size  # one gpu one image
+	assert args.gpu == 1, "Currently only support single-gpu inference"
+
+	if args.is_load_from_pb:
+		args.load_from = args.model_path
 
 	args.controller = "/cpu:0"  # parameter server
 
@@ -271,19 +277,6 @@ def check_args(args):
 	#print "cv2 version %s" % (cv2.__version__)
 
 
-# not used, not implemented yet
-def load_models(config):
-	models = []
-	for i in xrange(config.gpuid_start, config.gpuid_start + config.gpu):
-		models.append(get_model(config, i, controller=config.controller))
-	model_final_boxes = [model.final_boxes for model in models]
-	# [R]
-	model_final_labels = [model.final_labels for model in models]
-	model_final_probs = [model.final_probs for model in models]
-
-	return models
-
-
 if __name__ == "__main__":
 	args = get_args()
 
@@ -302,8 +295,6 @@ if __name__ == "__main__":
 			os.makedirs(vis_path)
 
 	# 1. load the object detection model
-
-	# models = load_models(args)
 	model = get_model(args, args.gpuid_start, controller=args.controller)
 
 	tfconfig = tf.ConfigProto(allow_soft_placement=True)
@@ -314,7 +305,8 @@ if __name__ == "__main__":
 
 	with tf.Session(config=tfconfig) as sess:
 
-		initialize(config=args, sess=sess)
+		if not args.is_load_from_pb:
+			initialize(config=args, sess=sess)
 
 		for videofile in tqdm(videolst, ascii=True):
 			# 2. read the video file

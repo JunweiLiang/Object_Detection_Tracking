@@ -3,9 +3,10 @@
 
 
 import tensorflow as tf
-from utils import Dataset,get_all_anchors,draw_boxes,box_wh_to_x1x2
+from utils import Dataset, get_all_anchors, draw_boxes, box_wh_to_x1x2, get_op_tensor_name
 import numpy as np
 import cv2
+import json
 from nn import * # yikes
 import math,random,sys,os,itertools
 import tensorflow.contrib.slim as slim
@@ -15,6 +16,8 @@ from nn import pretrained_resnet_conv4,conv2d,deconv2d,resnet_conv5,dense, pairw
 from nn import is_training
 
 from PIL import Image
+# need this otherwise No TRTEngineOp when load a trt graph
+import tensorflow.contrib.tensorrt as trt
 
 # ------------------------------ multi gpu stuff
 PS_OPS = [
@@ -45,17 +48,28 @@ def assign_to_device(compute_device, controller_device): # ps: paramter server
 
 
 #----------------------------------
-def get_model(config,gpuid=0,task=0,controller="/cpu:0"):
-	# task is not used
-	#with tf.device("/gpu:%s"%gpuid):
+"""
+	Notes on multi-gpu training:
+
+	Notes on multi-gpu inferencing using pb file
+"""
+
+# 05/2019, the code will still use other gpu even if we have set visible list; seems a v1.13 bug
+def get_model(config, gpuid=0, task=0, controller="/cpu:0"):
+
+	
 	with tf.device(assign_to_device("/gpu:%s"%(gpuid), controller)):
-		with tf.variable_scope(tf.get_variable_scope(), reuse=tf.AUTO_REUSE):
-			#tf.get_variable_scope().reuse_variables()
-			model = Mask_RCNN_FPN(config, gpuid=gpuid)
+		# load from frozen model
+		if config.is_load_from_pb:
+			model = Mask_RCNN_FPN_frozen(config.load_from, gpuid)
+		else:
+			with tf.variable_scope(tf.get_variable_scope(), reuse=tf.AUTO_REUSE):
+				#tf.get_variable_scope().reuse_variables()
+				model = Mask_RCNN_FPN(config, gpuid=gpuid)
 
 	return model
 
-def get_model_feat(config,gpuid=0,task=0,controller="/cpu:0"):
+def get_model_feat(config, gpuid=0, task=0, controller="/cpu:0"):
 	# task is not used
 	#with tf.device("/gpu:%s"%gpuid):
 	with tf.device(assign_to_device("/gpu:%s"%(gpuid), controller)):
@@ -64,6 +78,103 @@ def get_model_feat(config,gpuid=0,task=0,controller="/cpu:0"):
 			model = RCNN_FPN_givenbox(config, gpuid=gpuid)
 
 	return model
+
+
+# updated 05/29, pack model 
+# simple tf frozen graph or TensorRT optimized model
+def pack(config):
+	model = get_model(config)
+	tfconfig = tf.ConfigProto(allow_soft_placement=True)
+	tfconfig.gpu_options.allow_growth = True # this way it will only allocate nessasary 
+	with tf.Session(config=tfconfig) as sess:
+
+		initialize(load=True, load_best=config.load_best, config=config, sess=sess)
+
+		global_step = model.global_step
+
+		# also save all the model config and note into the model
+		assert config.note != "", "please add some note for the model"
+		# remove some param?
+		config_json = vars(config)
+		for k in config_json:
+			if type(config_json[k]) == type(np.array([1])):
+				config_json[k] = config_json[k].tolist()
+			if type(config_json[k]) == type(np.array([1])[0]):
+				config_json[k] = int(config_json[k])
+			if type(config_json[k]) == type(np.array([1.0])[0]):
+				config_json[k] = float(config_json[k])
+		with open(config.pack_modelconfig_path, "w") as f:
+			json.dump(config_json, f)
+
+		print "saving packed model..."
+		# put into one big file to save
+		input_graph_def = tf.get_default_graph().as_graph_def()
+		#print [n.name for n in input_graph_def.node]
+		# We use a built-in TF helper to export variables to constants
+		output_graph_def = tf.graph_util.convert_variables_to_constants(
+			sess, # The session is used to retrieve the weights
+			input_graph_def, # The graph_def is used to retrieve the nodes 
+			# output node names
+			[
+				"final_boxes",
+				"final_labels",
+				"final_probs",
+				"fpn_box_feat",
+			] 
+		) 
+		output_graph = config.pack_model_path
+		# Finally we serialize and dump the output graph to the filesystem
+		with tf.gfile.GFile(output_graph, "wb") as f:
+			f.write(output_graph_def.SerializeToString())
+		print "%d ops in the final graph." % len(output_graph_def.node)
+		
+		print "model saved in %s, config record is in %s"%(config.pack_model_path, config.pack_modelconfig_path)
+
+# load the weights at init time
+# this class has the same interface as Mask_RCNN_FPN
+class Mask_RCNN_FPN_frozen():
+	def __init__(self, modelpath, gpuid):
+		self.graph = tf.get_default_graph()
+			
+		# save path is one.pb file
+		
+		with tf.gfile.GFile(modelpath, "rb") as f:
+			graph_def = tf.GraphDef()
+			graph_def.ParseFromString(f.read())
+
+		#print [n.name for n in graph_def.node]
+		self.var_prefix = "model_%s" % gpuid # need this to load different stuff for different gpu
+		tf.import_graph_def(
+			graph_def,
+			name=self.var_prefix,
+			return_elements=None
+		)
+
+		#print 'Check out the input placeholders:'
+		#nodes = [n.name + ' => ' +  n.op for n in graph_def.node if n.op in ('Placeholder')]
+		#for node in nodes:
+		#	print node
+		#for op in self.graph.get_operations():
+		#	print op.name
+
+		# input place holders
+		self.image = self.graph.get_tensor_by_name("%s/image:0"%self.var_prefix)
+
+		self.final_boxes = self.graph.get_tensor_by_name("%s/final_boxes:0"%self.var_prefix)
+		self.final_labels = self.graph.get_tensor_by_name("%s/final_labels:0"%self.var_prefix)
+		self.final_probs = self.graph.get_tensor_by_name("%s/final_probs:0"%self.var_prefix)
+
+		self.fpn_box_feat = self.graph.get_tensor_by_name("%s/fpn_box_feat:0"%self.var_prefix)
+
+		print "loaded %s"%(modelpath)
+
+	def get_feed_dict_forward(self, imgdata):
+		feed_dict = {}
+
+		feed_dict[self.image] = imgdata
+
+		return feed_dict
+
 
 class Mask_RCNN_FPN():
 	def __init__(self,config,gpuid=0):
@@ -80,8 +191,9 @@ class Mask_RCNN_FPN():
 
 		# current model get one image at a time
 		self.image = tf.placeholder(tf.float32,[None, None, 3],name="image")
-		# used for dropout switch
-		self.is_train = tf.placeholder("bool",[],name='is_train')
+		
+		if not config.is_pack_model:
+			self.is_train = tf.placeholder("bool", [], name='is_train')
 
 		# for training
 		self.anchor_labels = []
@@ -651,11 +763,13 @@ class Mask_RCNN_FPN():
 			self.final_boxes = final_boxes
 			# [R]
 			self.final_labels = final_labels
-			self.final_probs = final_probs
+			# add a name so the frozen graph will have that name
+			self.final_probs = tf.identity(final_probs, name="final_probs")
 
 			
 			# [R, 256, 7, 7]
-			self.fpn_box_feat = self.multilevel_roi_align(p23456[:4],final_boxes, 7)
+			fpn_box_feat = self.multilevel_roi_align(p23456[:4],final_boxes, 7)
+			self.fpn_box_feat = tf.identity(fpn_box_feat, name="fpn_box_feat")
 			
 
 	# ----some model component
@@ -1488,3 +1602,103 @@ class RCNN_FPN_givenbox():
 
 		return feed_dict
 	
+def initialize(load,load_best,config,sess):
+	tf.global_variables_initializer().run()
+	if load:
+		print "restoring model..."
+		allvars = tf.global_variables()
+		allvars = [var for var in allvars if "global_step" not in var.name]
+		#restore_vars = allvars
+		opts = ["Adam","beta1_power","beta1_power_1","beta2_power","beta2_power_1","Adam_1","Adadelta_1","Adadelta","Momentum"]
+		
+			
+		allvars = [var for var in allvars if var.name.split(":")[0].split("/")[-1] not in opts]
+		# so allvars is actually the variables except things for training
+
+		if config.ignore_gn_vars:
+			allvars = [var for var in allvars if "/gn" not in var.name.split(":")[0]]
+
+		if config.ignore_vars is not None:
+			ignore_vars = config.ignore_vars.split(":")
+			ignore_vars.extend(opts)
+			# also these
+			#ignore_vars+=["global_step"]
+
+			restore_vars = []
+			for var in allvars:
+				ignore_it = False
+				for ivar in ignore_vars:
+					if ivar in var.name:
+						ignore_it=True
+						print "ignored %s"%var.name
+						break
+				if not ignore_it:
+					restore_vars.append(var)
+
+			print "ignoring %s variables, original %s vars, restoring for %s vars"% (len(ignore_vars),len(allvars),len(restore_vars))
+
+		else:
+			restore_vars = allvars
+
+		saver = tf.train.Saver(restore_vars, max_to_keep=5)
+
+		load_from = None
+		
+		if config.load_from is not None:
+			load_from = config.load_from
+		else:
+			if load_best:
+				load_from = config.save_dir_best
+			else:
+				load_from = config.save_dir
+		
+		ckpt = tf.train.get_checkpoint_state(load_from)
+		if ckpt and ckpt.model_checkpoint_path:
+			loadpath = ckpt.model_checkpoint_path
+			#if config.is_pack_model:
+			#	saver = tf.train.import_meta_graph(loadpath + ".meta", clear_devices=True)
+			saver.restore(sess, loadpath)
+			print "Model:"
+			print "\tloaded %s"%loadpath
+			print ""
+		else:
+			if os.path.exists(load_from): 
+				if load_from.endswith(".ckpt"):
+					# load_from should be a single .ckpt file
+					saver.restore(sess,load_from)
+				elif load_from.endswith(".npz"):
+					# load from dict
+					weights = np.load(load_from)
+					params = {get_op_tensor_name(n)[1]:v for n,v in dict(weights).iteritems()}
+					param_names = set(params.iterkeys())
+
+					#variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
+
+					variables = restore_vars
+
+					variable_names = set([k.name for k in variables])
+
+					intersect = variable_names & param_names
+
+					restore_vars = [v for v in variables if v.name in intersect]
+
+					with sess.as_default():
+						for v in restore_vars:
+							vname = v.name
+							v.load(params[vname])
+
+					#print variables # all the model's params
+
+					not_used = [(one,weights[one].shape) for one in weights.keys() if get_op_tensor_name(one)[1] not in intersect]
+					if len(not_used) > 0:
+						print "warning, %s/%s in npz not restored:%s"%(len(weights.keys()) - len(intersect), len(weights.keys()), not_used)
+
+					#if config.show_restore:			
+					#	print "loaded %s vars:%s"%(len(intersect),intersect)
+						
+
+				else:
+					raise Exception("Not recognized model type:%s"%load_from)
+			else:
+				raise Exception("Model not exists")
+		print "done."

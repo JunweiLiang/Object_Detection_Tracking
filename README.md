@@ -30,7 +30,7 @@ We utilize state-of-the-art object deteciton and tracking algorithm in surveilla
 ## Dependencies
 The code is originally written for Tensorflow v1.10 with Python 2.7 but it works on v1.13.1, too. Note that I didn't change the code for v1.13.1 instead I just disable Tensorflow warnings and logging.
 
-Other dependencies: numpy; scipy; sklearn; cv2
+Other dependencies: numpy; scipy; sklearn; cv2; matplotlib; pycocotools
 
 ## Code Overview
 - `obj_detect.py`: Inference code for object detection.
@@ -56,7 +56,7 @@ $ python obj_detect.py --model_path obj_v3_model --version 3 --video_dir v1-val_
 --video_lst_file v1-val_testvideos.lst --out_dir test_json_out --frame_gap 1 --visualize \
 --vis_path test_vis_out --get_box_feat --box_feat_path test_box_feat_out
 ```
-The object detection output for each frame will be in `test_json_out/` and in COCO format. The visualization frames will be in `test_vis_out/`. The ROI features will be in `test_box_feat_out/`. Remove `--visualize  --vis_path test_vis_out` and `--get_box_feat --box_feat_path test_box_feat_out` if you only want the json files.
+The object detection output for each frame will be in `test_json_out/` and in COCO format. The visualization frames will be in `test_vis_out/`. The ROI features will be in `test_box_feat_out/`. Remove `--visualize  --vis_path test_vis_out` and `--get_box_feat --box_feat_path test_box_feat_out` if you only want the json files. You can also add `--is_load_from_pb` and change '--model_path' to point to a frozen graph to boost the inferencing speed a bit.
 
 3. Run object detection & tracking on the test videos
 ```
@@ -64,6 +64,7 @@ $ python obj_detect_tracking.py --model_path obj_v3_model --version 3 --video_di
 --video_lst_file v1-val_testvideos.lst --out_dir test_json_out --frame_gap 1 --get_tracking \
 --tracking_dir test_track_out
 ```
+You can also add `--is_load_from_pb` and change '--model_path' to point to a frozen graph to boost the inferencing speed a bit.
 The tracking results will be in `test_track_out/` and in MOTChallenge format. To visualize the tracking results:
 ```
 $ ls $PWD/v1-val_testvideos/* > v1-val_testvideos.abs.lst
@@ -248,3 +249,14 @@ These are my experiences with working on this [surveillance dataset](https://act
 2. Dilated CNN in backbone also helps;
 3. Cascade RCNN doesn't help (IOU=0.5). I'm using IOU=0.5 in my evaluation since the original annotations are not "tight" bounding boxes.
 4. Decoupled RCNN slightly improves AP (Person: 0.836 -> 0.837) but takes 7x more time.
+
+## Speed
+**TL;DR**: 
+TF v1.10 -> v1.13 (CUDA 9 & cuDNN v7.1 -> CUDA 10 & cuDNN v7.4) ~ +8% faster
+Use frozen graph  ~ +..% faster
+Use TensorRT optimized graph ~ +..% faster
+Experiments are recorded [here](SPEED.md)
+
+
+
+

@@ -4,6 +4,8 @@
 
 import sys,os,argparse
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' # so here won't have poll allocator info
+# solve the issue of a bug in while loop, when you import the graph in multi-gpu, prefix is not added in while loop op # https://github.com/tensorflow/tensorflow/issues/26526
+os.environ['TF_ENABLE_CONTROL_FLOW_V2'] = '1' 
 
 # remove all the annoying warnings from tf v1.10 to v1.13
 import logging
@@ -23,12 +25,11 @@ import tensorflow as tf
 import pycocotools.mask as cocomask
 
 from tqdm import tqdm
-from models import fill_full_mask, resizeImage
-from utils import evalcoco, get_op_tensor_name, match_detection, computeAP, computeAR, computeAR_2, grouper, gather_dt, gather_gt, match_dt_gt, gather_act_singles, aggregate_eval, weighted_average
+from models import fill_full_mask, resizeImage, pack, initialize
+from utils import evalcoco, match_detection, computeAP, computeAR, computeAR_2, grouper, gather_dt, gather_gt, match_dt_gt, gather_act_singles, aggregate_eval, weighted_average
 
 from utils import Dataset, Summary, nms_wrapper, FIFO_ME
 
-from nn import soft_nms, nms
 
 def get_args():
 	global targetClass2id, targetid2class
@@ -206,8 +207,13 @@ def get_args():
 
 	# -------------------- save model for deployment
 	parser.add_argument("--is_pack_model",action="store_true",default=False,help="with is_test, this will pack the model to a path instead of testing")
-	parser.add_argument("--pack_model_path",type=str,default=None,help="path to save model")
-	parser.add_argument("--pack_model_note",type=str,default=None,help="leave a note for this packed model for future reference")
+	parser.add_argument("--pack_model_path",type=str,default=None,help="path to save model, a .pb file")
+	parser.add_argument("--note",type=str,default=None,help="leave a note for this packed model for future reference")
+	parser.add_argument("--pack_modelconfig_path", type=str, default=None, help="json file to save the config and note")
+
+	# forward with frozen gragp
+	parser.add_argument("--is_load_from_pb", action="store_true")
+	
 
 	# ------------------------------------ model specifics
 	
@@ -1158,50 +1164,6 @@ def train_diva(config):
 				json.dump(stats,f)
 
 
-def pack(config):
-	model = get_model(config)
-	tfconfig = tf.ConfigProto(allow_soft_placement=True)
-	tfconfig.gpu_options.allow_growth = True # this way it will only allocate nessasary 
-	with tf.Session(config=tfconfig) as sess:
-
-		initialize(load=True,load_best=config.load_best,config=config,sess=sess)
-
-		saver = tf.train.Saver()
-		global_step = model.global_step
-		# put input and output to a universal name for reference when in deployment
-			# find the nessary stuff in model.get_feed_dict
-		tf.add_to_collection("input",model.x)
-		tf.add_to_collection("is_train",model.is_train) # TODO, change this to a constant 
-		tf.add_to_collection("output",model.yp)
-		# also save all the model config and note into the model
-		pack_model_note = tf.get_variable("model_note",shape=[],dtype=tf.string,initializer=tf.constant_initializer(config.pack_model_note),trainable=False)
-		full_config = tf.get_variable("model_config",shape=[],dtype=tf.string,initializer=tf.constant_initializer(json.dumps(vars(config))),trainable=False)
-
-		print "saving packed model"
-		# the following wont save the var model_note, model_config that's not in the graph, 
-		# TODO: fix this
-		"""
-		# put into one big file to save
-		input_graph_def = tf.get_default_graph().as_graph_def()
-		#print [n.name for n in input_graph_def.node]
-		 # We use a built-in TF helper to export variables to constants
-		output_graph_def = tf.graph_util.convert_variables_to_constants(
-			sess, # The session is used to retrieve the weights
-			input_graph_def, # The graph_def is used to retrieve the nodes 
-			[tf.get_collection("output")[0].name.split(":")[0]] # The output node names are used to select the usefull nodes
-		) 
-		output_graph = os.path.join(config.pack_model_path,"final.pb")
-		# Finally we serialize and dump the output graph to the filesystem
-		with tf.gfile.GFile(output_graph, "wb") as f:
-			f.write(output_graph_def.SerializeToString())
-		print("%d ops in the final graph." % len(output_graph_def.node))
-		"""
-		# save it into a path with multiple files
-		saver.save(sess,
-			os.path.join(config.pack_model_path,"final"),
-			global_step=global_step)
-		print "model saved in %s"%(config.pack_model_path)
-
 # given the box, extract feature
 def boxfeat(config):
 	imagelist = config.imgpath
@@ -1389,10 +1351,10 @@ def forward(config):
 
 	#model = get_model(config) # input image -> final_box, final_label, final_masks
 	#tester = Tester(model,config,add_mask=config.add_mask)
+
 	models = []
 	for i in xrange(config.gpuid_start, config.gpuid_start+config.gpu):
-		models.append(get_model(config,i,controller=config.controller))
-
+		models.append(get_model(config, i, controller=config.controller))
 
 	model_final_boxes = [model.final_boxes for model in models]
 	# [R]
@@ -1419,7 +1381,7 @@ def forward(config):
 	if not config.diva_class and not config.diva_class2 and not config.diva_class3:
 		add_coco(config,config.datajson)
 
-	tfconfig = tf.ConfigProto(allow_soft_placement=True)
+	tfconfig = tf.ConfigProto(allow_soft_placement=True, log_device_placement=False)
 	if not config.use_all_mem:
 		tfconfig.gpu_options.allow_growth = True # this way it will only allocate nessasary gpu, not take all
 	
@@ -1427,7 +1389,10 @@ def forward(config):
 
 	with tf.Session(config=tfconfig) as sess:
 
-		initialize(load=True,load_best=config.load_best,config=config,sess=sess)
+		# for packing model, the weights are already loaded
+		if not config.is_load_from_pb:
+			initialize(load=True, load_best=config.load_best, config=config, sess=sess)
+
 		# num_epoch should be 1
 		assert config.num_epochs == 1
 
@@ -2091,109 +2056,6 @@ def test(config):
 			print "mean AP with IoU 0.5:%s, mean AR with max detection %s:%s, took %s seconds"%(mean_ap,maxDet,mean_ar,took)
 
 
-
-
-def initialize(load,load_best,config,sess):
-	tf.global_variables_initializer().run()
-	if load:
-		print "restoring model..."
-		allvars = tf.global_variables()
-		allvars = [var for var in allvars if "global_step" not in var.name]
-		#restore_vars = allvars
-		opts = ["Adam","beta1_power","beta1_power_1","beta2_power","beta2_power_1","Adam_1","Adadelta_1","Adadelta","Momentum"]
-		
-			
-		allvars = [var for var in allvars if var.name.split(":")[0].split("/")[-1] not in opts]
-		# so allvars is actually the variables except things for training
-
-		if config.ignore_gn_vars:
-			allvars = [var for var in allvars if "/gn" not in var.name.split(":")[0]]
-
-		if config.ignore_vars is not None:
-			ignore_vars = config.ignore_vars.split(":")
-			ignore_vars.extend(opts)
-			# also these
-			#ignore_vars+=["global_step"]
-
-			restore_vars = []
-			for var in allvars:
-				ignore_it = False
-				for ivar in ignore_vars:
-					if ivar in var.name:
-						ignore_it=True
-						print "ignored %s"%var.name
-						break
-				if not ignore_it:
-					restore_vars.append(var)
-
-			print "ignoring %s variables, original %s vars, restoring for %s vars"% (len(ignore_vars),len(allvars),len(restore_vars))
-
-		else:
-			restore_vars = allvars
-
-		saver = tf.train.Saver(restore_vars, max_to_keep=5)
-
-		load_from = None
-		
-		if config.load_from is not None:
-			load_from = config.load_from
-		else:
-			if load_best:
-				load_from = config.save_dir_best
-			else:
-				load_from = config.save_dir
-		
-		ckpt = tf.train.get_checkpoint_state(load_from)
-		if ckpt and ckpt.model_checkpoint_path:
-			loadpath = ckpt.model_checkpoint_path
-					
-			saver.restore(sess, loadpath)
-			print "Model:"
-			print "\tloaded %s"%loadpath
-			print ""
-		else:
-			if os.path.exists(load_from): 
-				if load_from.endswith(".ckpt"):
-					# load_from should be a single .ckpt file
-					saver.restore(sess,load_from)
-				elif load_from.endswith(".npz"):
-					# load from dict
-					weights = np.load(load_from)
-					params = {get_op_tensor_name(n)[1]:v for n,v in dict(weights).iteritems()}
-					param_names = set(params.iterkeys())
-
-					#variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
-
-					variables = restore_vars
-
-					variable_names = set([k.name for k in variables])
-
-					intersect = variable_names & param_names
-
-					restore_vars = [v for v in variables if v.name in intersect]
-
-					with sess.as_default():
-						for v in restore_vars:
-							vname = v.name
-							v.load(params[vname])
-
-					#print variables # all the model's params
-
-					not_used = [(one,weights[one].shape) for one in weights.keys() if get_op_tensor_name(one)[1] not in intersect]
-					if len(not_used) > 0:
-						print "warning, %s/%s in npz not restored:%s"%(len(weights.keys()) - len(intersect), len(weights.keys()), not_used)
-
-					#if config.show_restore:			
-					#	print "loaded %s vars:%s"%(len(intersect),intersect)
-						
-
-				else:
-					raise Exception("Not recognized model type:%s"%load_from)
-			else:
-				raise Exception("Model not exists")
-		print "done."
-
-
 # https://stackoverflow.com/questions/38160940/how-to-count-total-number-of-trainable-parameters-in-a-tensorflow-model
 def cal_total_param():
 	total = 0
@@ -2225,9 +2087,12 @@ def log_gpu_util(interval, gpuid_range):
 		gpu_util_logs.extend(gpu_utils)
 		gpu_temp_logs.extend(gpu_temps)
 
+
 if __name__ == "__main__":
 	config = get_args()
 
+	if config.mode == "pack":
+		config.is_pack_model = True
 	if config.is_pack_model:
 		pack(config)
 	else:
