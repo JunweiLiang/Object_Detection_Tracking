@@ -8,7 +8,7 @@ Machine 1: 2 GTX 1080 TI, i7, nvme
 
 Machine 2: 3 GTX 1080 TI + 1 TITAN X, E5, nvme
 
-Each run is conducted without other programs running.
+Each run is conducted without other programs running except \*.
 
 Machine 1
 
