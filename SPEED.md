@@ -67,7 +67,9 @@ $ python main.py nothing nothing --mode pack --pack_model_path obj_v3.pb \
 
 Run testing on the v1-val set:
 ```
-$ python main.py nothing v1-validate_frames.lst --mode forward --outbasepath obj_v3_val_output --num_class 15 --diva_class3 --max_size 1920 --short_edge_size 1080 --gpu 2 --im_batch_size 2 --load_from obj_v3.pb  --is_load_from_pb --log
+$ python main.py nothing v1-validate_frames.lst --mode forward --outbasepath \
+obj_v3_val_output --num_class 15 --diva_class3 --max_size 1920 --short_edge_size \
+1080 --gpu 2 --im_batch_size 2 --load_from obj_v3.pb  --is_load_from_pb --log
 ```
 Assuming `v1-validate_frames.lst` contains absolute path of all images. This will output one json in COCO detection format for each image in `obj_v3_val_output/`. The `--log` will run `nvidia-smi` every couple second in a separate thread to record the gpu utilizations.
 
@@ -80,7 +82,9 @@ $ python tensorrt_optimize.py obj_v3.pb obj_v3_tensorrt.pb
 
 But when I run testing with:
 ```
-$ python main.py nothing v1-validate_frames.lst --mode forward --outbasepath obj_v3_val_output --num_class 15 --diva_class3 --max_size 1920 --short_edge_size 1080 --gpu 2 --im_batch_size 2 --load_from obj_v3_tensorrt.pb  --is_load_from_pb --log
+$ python main.py nothing v1-validate_frames.lst --mode forward --outbasepath \
+obj_v3_val_output --num_class 15 --diva_class3 --max_size 1920 --short_edge_size \
+1080 --gpu 2 --im_batch_size 2 --load_from obj_v3_tensorrt.pb  --is_load_from_pb --log
 ```
 I got the following error:
 `InternalError (see above for traceback): Native FunctionDef TRTEngineOp_34_native_segment can't be found in function library`
