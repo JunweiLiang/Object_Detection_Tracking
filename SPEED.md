@@ -22,7 +22,8 @@ Machine 2: 3 GTX 1080 TI + 1 TITAN X, E5, nvme
 | 3       | 206268  | 1920x1080  | 2          |             |                         |             |
 | 2       | 206268  | 1920x1080  | 1          |             |                         |             |
 | 3       | 206268  | 1920x1080  | 1          |             |                         |             |
-|         |         |            |            |             |                         |             |
+
+
 | Machine 2    | Run #1  |            |            |             |                         |             |
 | Summary | # Image | Image Size | # GPU Used | runtime (s) | GPU Average Utilization | Per GPU FPS |
 | 2       | 206268  | 1920x1080  | 4          | 29354.4     | 33.8%                   | 1.76        |
@@ -43,11 +44,12 @@ Machine 2: 3 GTX 1080 TI + 1 TITAN X, E5, nvme
 
 TODO: Add input queues mechanism to improve GPU utilization.
 
-| RunType | 1 | tf 1.10 (CUDA 9, cudnn 7.1), Variable Model                             |
-|---------|---|-------------------------------------------------------------------------|
-|         | 2 | tf 1.13 (CUDA 10.0 cudnn 7.4), Variable Model                           |
-|         | 3 | tf 1.13 (CUDA 10.0 cudnn 7.4), Frozen Graph (.pb)                       |
-|         | 4 | tf 1.13 (CUDA 10.0 cudnn 7.4), Frozen Graph (.pb) -> TensorRT Optimized |
+| RunType |                                                                         |
+|---------|-------------------------------------------------------------------------|
+| 1       | tf 1.10 (CUDA 9, cudnn 7.1), Variable Model                             |
+| 2       | tf 1.13 (CUDA 10.0 cudnn 7.4), Variable Model                           |
+| 3       | tf 1.13 (CUDA 10.0 cudnn 7.4), Frozen Graph (.pb)                       |
+| 4       | tf 1.13 (CUDA 10.0 cudnn 7.4), Frozen Graph (.pb) -> TensorRT Optimized |
 
 To freeze the model into a .pb file:
 ```
