@@ -56,7 +56,7 @@ $ python obj_detect.py --model_path obj_v3_model --version 3 --video_dir v1-val_
 --video_lst_file v1-val_testvideos.lst --out_dir test_json_out --frame_gap 1 --visualize \
 --vis_path test_vis_out --get_box_feat --box_feat_path test_box_feat_out
 ```
-The object detection output for each frame will be in `test_json_out/` and in COCO format. The visualization frames will be in `test_vis_out/`. The ROI features will be in `test_box_feat_out/`. Remove `--visualize  --vis_path test_vis_out` and `--get_box_feat --box_feat_path test_box_feat_out` if you only want the json files. You can also add `--is_load_from_pb` and change '--model_path' to point to a frozen graph to boost the inferencing speed a bit.
+The object detection output for each frame will be in `test_json_out/` and in COCO format. The visualization frames will be in `test_vis_out/`. The ROI features will be in `test_box_feat_out/`. Remove `--visualize  --vis_path test_vis_out` and `--get_box_feat --box_feat_path test_box_feat_out` if you only want the json files.
 
 3. Run object detection & tracking on the test videos
 ```
