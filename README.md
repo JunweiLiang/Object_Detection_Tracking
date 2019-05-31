@@ -252,10 +252,11 @@ These are my experiences with working on this [surveillance dataset](https://act
 4. Decoupled RCNN slightly improves AP (Person: 0.836 -> 0.837) but takes 7x more time.
 
 ## Speed Optimization
-**TL;DR**: 
-TF v1.10 -> v1.13 (CUDA 9 & cuDNN v7.1 -> CUDA 10 & cuDNN v7.4) ~ +8.7% faster
-Use frozen graph  ~ +20.4% faster
-Use TensorRT optimized graph ~ +?% faster
+**TL;DR**:
+- TF v1.10 -> v1.13 (CUDA 9 & cuDNN v7.1 -> CUDA 10 & cuDNN v7.4) ~ +8.7% faster
+- Use frozen graph  ~ +20.4% faster
+- Use TensorRT optimized graph ~ +?% faster
+
 Experiments are recorded [here](SPEED.md)
 
 
