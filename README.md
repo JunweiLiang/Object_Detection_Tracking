@@ -80,8 +80,10 @@ $ ffmpeg -framerate 30 -i Person_vis/VIRAT_S_000205_05_001092_001124/VIRAT_S_000
 ```
 Now you have the tracking visualization videos for both "Person" and "Vehicle" class.
 
+4. You can also run both inferencing with frozen graph (See [this](SPEED.md) for instrctions of how to pack the model). Change `--model_path obj_v3.pb` and add `--is_load_from_pb`. It is about 20% faster.
+
 ## Models
-These are the models you can use for inferencing. The original ActEv annotations can be downloaded from [here](https://next.cs.cmu.edu/data/actev-v1-drop4-yaml.tgz). I will add instruction for training and testing if requested.
+These are the models you can use for inferencing. The original ActEv annotations can be downloaded from [here](https://next.cs.cmu.edu/data/actev-v1-drop4-yaml.tgz). I will add instruction for training and testing if requested. Click to download each model.
 
 <table>
   <tr>
@@ -118,7 +120,7 @@ These are the models you can use for inferencing. The original ActEv annotations
 <table>
   <tr>
   	<td colspan="6">
-  		<a href="https://aladdin-eax.inf.cs.cmu.edu/shares/diva_obj_detect_models/models/obj_v3_model.tgz">Object v3</a>
+  		<a href="https://aladdin-eax.inf.cs.cmu.edu/shares/diva_obj_detect_models/models/obj_v3_model.tgz">Object v3</a> (<a href="https://aladdin-eax.inf.cs.cmu.edu/shares/diva_obj_detect_models/models/obj_v3.pb">Frozen Graph</a>)
   	: Trained on v1-train, Dilated CNN</td>
   </tr>
   <tr>
@@ -250,11 +252,11 @@ These are my experiences with working on this [surveillance dataset](https://act
 3. Cascade RCNN doesn't help (IOU=0.5). I'm using IOU=0.5 in my evaluation since the original annotations are not "tight" bounding boxes.
 4. Decoupled RCNN slightly improves AP (Person: 0.836 -> 0.837) but takes 7x more time.
 
-## Speed
+## Speed Optimization
 **TL;DR**: 
-TF v1.10 -> v1.13 (CUDA 9 & cuDNN v7.1 -> CUDA 10 & cuDNN v7.4) ~ +8% faster
-Use frozen graph  ~ +..% faster
-Use TensorRT optimized graph ~ +..% faster
+TF v1.10 -> v1.13 (CUDA 9 & cuDNN v7.1 -> CUDA 10 & cuDNN v7.4) ~ +8.7% faster
+Use frozen graph  ~ +20.4% faster
+Use TensorRT optimized graph ~ +?% faster
 Experiments are recorded [here](SPEED.md)
 
 
