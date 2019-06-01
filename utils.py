@@ -64,7 +64,7 @@ class FIFO_ME:
 import commands
 def parse_nvidia_smi(gpuid_range):
 	nvi_out = commands.getoutput("nvidia-smi")
-	gpu_info_blocks = get_gpu_info_block(nvi_out)[gpuid_range[0]:gpuid_range[1]+1]
+	gpu_info_blocks = get_gpu_info_block(nvi_out)[gpuid_range[0]:(gpuid_range[0] + gpuid_range[1])]
 	num_gpu = len(gpu_info_blocks) # the ones we care
 	# all are a list of 
 	temps = [float(info_block.strip().strip("|").split()[1].strip("C")) for info_block in gpu_info_blocks]

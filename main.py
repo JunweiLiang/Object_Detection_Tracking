@@ -2120,8 +2120,9 @@ if __name__ == "__main__":
 
 		if config.log_time_and_gpu:
 			end_time = time.time()
-			print "total run time %s, log gpu utilize every %s seconds and get median %.2f%% and average %.2f%%. GPU temperature median %.2f and average %.2f (C)" % (
+			print "total run time %s (%s), log gpu utilize every %s seconds and get median %.2f%% and average %.2f%%. GPU temperature median %.2f and average %.2f (C)" % (
 				sec2time(end_time - start_time),
+				end_time - start_time,
 				gpu_log_interval,
 				np.median(gpu_util_logs)*100,
 				np.mean(gpu_util_logs)*100,

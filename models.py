@@ -48,13 +48,10 @@ def assign_to_device(compute_device, controller_device): # ps: paramter server
 
 
 #----------------------------------
-"""
-	Notes on multi-gpu training:
 
-	Notes on multi-gpu inferencing using pb file
-"""
 
 # 05/2019, the code will still use other gpu even if we have set visible list; seems a v1.13 bug
+# yes it is a v1.13 bug, something to do with XLA: https://github.com/horovod/horovod/issues/876
 def get_model(config, gpuid=0, task=0, controller="/cpu:0"):
 
 	

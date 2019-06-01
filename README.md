@@ -79,7 +79,7 @@ $ ffmpeg -framerate 30 -i Person_vis/VIRAT_S_000205_05_001092_001124/VIRAT_S_000
 ```
 Now you have the tracking visualization videos for both "Person" and "Vehicle" class.
 
-4. You can also run both inferencing with frozen graph (See [this](SPEED.md) for instrctions of how to pack the model). Change `--model_path obj_v3.pb` and add `--is_load_from_pb`. It is about 20% faster.
+4. You can also run both inferencing with frozen graph (See [this](SPEED.md) for instrctions of how to pack the model). Change `--model_path obj_v3.pb` and add `--is_load_from_pb`. It is about 30% faster.
 
 ## Models
 These are the models you can use for inferencing. The original ActEv annotations can be downloaded from [here](https://next.cs.cmu.edu/data/actev-v1-drop4-yaml.tgz). I will add instruction for training and testing if requested. Click to download each model.
@@ -253,8 +253,8 @@ These are my experiences with working on this [surveillance dataset](https://act
 
 ## Speed Optimization
 **TL;DR**:
-- TF v1.10 -> v1.13 (CUDA 9 & cuDNN v7.1 -> CUDA 10 & cuDNN v7.4) ~ +8.7% faster
-- Use frozen graph  ~ +20.4% faster
+- TF v1.10 -> v1.13 (CUDA 9 & cuDNN v7.1 -> CUDA 10 & cuDNN v7.4) ~ +9% faster
+- Use frozen graph  ~ +30% faster
 - Use TensorRT optimized graph ~ +?% faster
 
 Experiments are recorded [here](SPEED.md)
