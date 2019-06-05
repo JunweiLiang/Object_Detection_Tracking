@@ -261,7 +261,7 @@ These are my experiences with working on this [surveillance dataset](https://act
 Experiments are recorded [here](SPEED.md)
 
 ## Acknowledgements
-I made this code by studying the example in [Tensorpack](https://github.com/tensorpack/tensorpack/tree/master/examples/FasterRCNN).
+I made this code by studying the nice example in [Tensorpack](https://github.com/tensorpack/tensorpack/tree/master/examples/FasterRCNN).
 
 
 
