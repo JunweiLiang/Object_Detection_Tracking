@@ -166,6 +166,7 @@ def get_args():
 		args.use_se = True
 
 	# ---------------more defautls
+	args.is_pack_model = False
 	args.diva_class3 = True
 	args.diva_class = False
 	args.diva_class2 = False
