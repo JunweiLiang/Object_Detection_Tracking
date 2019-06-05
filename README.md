@@ -258,7 +258,7 @@ These are my experiences with working on this [surveillance dataset](https://act
 - Use frozen graph  ~ +30% faster
 - Use TensorRT optimized graph ~ +?% faster
 
-Experiments are recorded [here](SPEED.md)
+Experiments are recorded [here](SPEED.md).
 
 ## Acknowledgements
 I made this code by studying the nice example in [Tensorpack](https://github.com/tensorpack/tensorpack/tree/master/examples/FasterRCNN).
