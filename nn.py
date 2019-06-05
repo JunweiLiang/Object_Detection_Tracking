@@ -14,10 +14,11 @@ def conv_out_size_same(size, stride):
 
 
 # softnms
-try:
-	from softnms.nms import cpu_soft_nms, cpu_nms
-except Exception as e:
-	from softnms.cpu_nms import cpu_soft_nms, cpu_nms # Uhuh
+# 06/2019; removed. I'm not using it anyway. Experiments show no significant improvement.
+#try:
+#	from softnms.nms import cpu_soft_nms, cpu_nms
+#except Exception as e:
+#	from softnms.cpu_nms import cpu_soft_nms, cpu_nms # Uhuh
 
 # given a list of boxes, 
 # dets : [N, 5], in (x1,y1,x2,y2, score)

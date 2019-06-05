@@ -14,7 +14,7 @@ import pycocotools.mask as cocomask
 from pycocotools.coco import COCO
 from pycocotools.cocoeval import COCOeval
 
-from nn import soft_nms,nms
+from nn import soft_nms, nms
 from generate_anchors import generate_anchors
 
 
