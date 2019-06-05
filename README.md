@@ -250,7 +250,7 @@ These are my experiences with working on this [surveillance dataset](https://act
 2. Dilated CNN in backbone also helps;
 3. Cascade RCNN doesn't help (IOU=0.5). I'm using IOU=0.5 in my evaluation since the original annotations are not "tight" bounding boxes.
 4. Decoupled RCNN slightly improves AP (Person: 0.836 -> 0.837) but takes 7x more time.
-5. SoftNMS shows mixed results and add 5% more computation time to system. So I don't use it.
+5. SoftNMS shows mixed results and add 5% more computation time to system (since I used the CPU version). So I don't use it.
 
 ## Speed Optimization
 **TL;DR**:
