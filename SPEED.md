@@ -86,3 +86,10 @@ obj_v3_val_output --num_class 15 --diva_class3 --max_size 1920 --short_edge_size
 ```
 I got the following error:
 `InternalError (see above for traceback): Native FunctionDef TRTEngineOp_34_native_segment can't be found in function library`
+
+Changed `is_dynamic_op=False` and then I got this error:
+```
+InternalError (see above for traceback): Native FunctionDef fpn/upsample_lat5/Tensordot/TRTEngineOp_39_native_segment can't be found in function library
+         [[node model_0/fpn/upsample_lat5/Tensordot/TRTEngineOp_39 (defined at /home/junweil/object_detection/script/tf_mrcnn/models.py:147) ]]
+         [[{{node model_0/fastrcnn_predictions/map/while/body/_1/GatherV2_1}}]]
+```

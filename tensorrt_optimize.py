@@ -9,7 +9,7 @@ parser.add_argument("pbfile")
 parser.add_argument("newpbfile")
 
 max_batch_size=1
-precision_mode='FP32'
+precision_mode='FP16'
 minimum_segment_size=2
 max_workspace_size_bytes=1 << 32
 maximum_cached_engines=100
@@ -44,7 +44,7 @@ if __name__ == "__main__":
 				max_workspace_size_bytes=max_workspace_size_bytes,
 				precision_mode=precision_mode,
 				minimum_segment_size=minimum_segment_size,
-				is_dynamic_op=True,
+				is_dynamic_op=False,
 				maximum_cached_engines=maximum_cached_engines)
 			end_time = time.time()
 			print "graph_size(MB)(native_tf): %.1f" % (float(graph_size)/(1<<20))
