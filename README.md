@@ -252,6 +252,9 @@ These are my experiences with working on this [surveillance dataset](https://act
 4. Decoupled RCNN slightly improves AP (Person: 0.836 -> 0.837) but takes 7x more time.
 5. SoftNMS shows mixed results and add 5% more computation time to system (since I used the CPU version). So I don't use it.
 
+## Training & Testing
+Intruction to train a new model is [here](TRAINING.md).
+
 ## Speed Optimization
 **TL;DR**:
 - TF v1.10 -> v1.13 (CUDA 9 & cuDNN v7.1 -> CUDA 10 & cuDNN v7.4) ~ +9% faster
