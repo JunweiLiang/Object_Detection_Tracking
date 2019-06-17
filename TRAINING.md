@@ -23,7 +23,7 @@ These file lists are in absolute path. You will need to replace the path with th
 wget http://models.tensorpack.com/FasterRCNN/COCO-MaskRCNN-R101FPN1x.npz
 ```
 
-- Train the obj_v3 model:
+- Train the obj_v3 model with 1 GPU:
 ```
 $ python main.py nothing training_frames --mode train --annopath v1-training_012019_actgt_allsingle_npz \
 --trainlst v1-training_minusminival_frames.lst --train_skip 30 --valframepath v1-training_frames --vallst \
@@ -34,6 +34,7 @@ v1-training_minival_frames.lst --valannopath v1-training_012019_actgt_allsingle_
 --flip_image --load_from COCO-MaskRCNN-R101FPN1x.npz --skip_first_eval --best_first -1 --show_loss_period 1000 \
 --loss_me_step 50 --ignore_vars fastrcnn/outputs --wd 0.0001 --use_dilation --use_frcnn_class_agnostic
 ```
+You can change `--gpu 4` and `--im_batch_size 4` if you have a multi-GPU machine. Note that it is a [known bug](https://github.com/tensorflow/tensorflow/issues/23458) in tf 1.13 that you would see all 4 gpu memory allocated even if you set gpu to 2.
 
 ## Testing
 - Download the videos from [ActEV](https://actev.nist.gov/) or the dataset you wish to test on and extract all the frames into the following format: `validation_frames/${videoname}/${videoname}_F_%08d.jpg`.
