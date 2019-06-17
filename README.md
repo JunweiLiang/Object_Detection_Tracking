@@ -249,7 +249,7 @@ These are my experiences with working on this [surveillance dataset](https://act
 1. FPN provides significant improvement over non-FPN backbone;
 2. Dilated CNN in backbone also helps but Squeeze-Excitation block is unclear (see model obj_v6);
 3. Cascade RCNN doesn't help (IOU=0.5). I'm using IOU=0.5 in my evaluation since the original annotations are not "tight" bounding boxes.
-4. Decoupled RCNN slightly improves AP (Person: 0.836 -> 0.837) but takes 7x more time.
+4. Decoupled RCNN (using a separate Resnet-101 for box classification) slightly improves AP (Person: 0.836 -> 0.837) but takes 7x more time.
 5. SoftNMS shows mixed results and add 5% more computation time to system (since I used the CPU version). So I don't use it.
 6. Tried [Mix-up](https://arxiv.org/abs/1710.09412) by randomly mixing ground truth bounding boxes from different frames. Doesn't improve performance.
 

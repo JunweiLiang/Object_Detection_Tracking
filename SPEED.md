@@ -93,3 +93,5 @@ InternalError (see above for traceback): Native FunctionDef fpn/upsample_lat5/Te
          [[node model_0/fpn/upsample_lat5/Tensordot/TRTEngineOp_39 (defined at /home/junweil/object_detection/script/tf_mrcnn/models.py:147) ]]
          [[{{node model_0/fastrcnn_predictions/map/while/body/_1/GatherV2_1}}]]
 ```
+
+These errors are likely caused by my use of [unsupported OPs](https://github.com/tensorflow/tensorrt/issues/80) in TensorRT.
