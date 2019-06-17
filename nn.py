@@ -811,7 +811,7 @@ def resnet_fpn_backbone(image, num_blocks,resolution_requirement, use_deformable
 	assert len(num_blocks) == 4
 	shape2d = tf.shape(image)[2:]
 
-	# this gets the nearest H, W that can be zheng chu by 32
+	# this gets the nearest H, W that is a multiplier of 32
 	# 720 -> 736, 1080 -> 1088
 	mult = resolution_requirement * 1.0
 	new_shape2d = tf.to_int32(tf.ceil(tf.to_float(shape2d) / mult) * mult)
@@ -836,7 +836,7 @@ def resnet_fpn_backbone(image, num_blocks,resolution_requirement, use_deformable
 			[pad_base[0], pad_base[1] + pad_shape2d[1]]])
 	l.set_shape([None,channel,None,None])
 
-	# 720, 1280 -> 736, 1280 / 1080, 1920 -> 1088, 1920, zhengchu by 32
+	# 720, 1280 -> 736, 1280 / 1080, 1920 -> 1088, 1920, a multiplier of 32
 	# actually 741/1093 due to the pad_base of [2, 3]
 	# pad_base is for first conv and max pool
 	#l = tf.Print(l, data=[tf.shape(l)], summarize=10) 
