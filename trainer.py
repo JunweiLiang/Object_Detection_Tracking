@@ -116,7 +116,7 @@ class Trainer():
 		for model in self.models:
 			gpuid = model.gpuid
 			# compute gradients on each gpu devices
-			with tf.device(assign_to_device("/gpu:%s"%(gpuid), config.controller)):
+			with tf.device(assign_to_device("/GPU:%s"%(gpuid), config.controller)):
 				self.losses.append(model.loss)
 				grad = self.opt.compute_gradients(model.loss)
 

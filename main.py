@@ -25,7 +25,8 @@ import tensorflow as tf
 import pycocotools.mask as cocomask
 
 from tqdm import tqdm
-from models import fill_full_mask, resizeImage, pack, initialize
+from models import pack, initialize
+from nn import resizeImage, fill_full_mask
 from utils import evalcoco, match_detection, computeAP, computeAR, computeAR_2, grouper, gather_dt, gather_gt, match_dt_gt, gather_act_singles, aggregate_eval, weighted_average
 
 from utils import Dataset, Summary, nms_wrapper, FIFO_ME
@@ -585,7 +586,7 @@ def read_data_diva(config, idlst, framepath, annopath, tococo=False, randp=None,
 		anno = os.path.join(annopath,"%s.npz"%img)
 		if not os.path.exists(anno):
 			continue
-		anno = dict(np.load(anno)) # 'boxes' -> [K,4] 
+		anno = dict(np.load(anno, allow_pickle=True)) # 'boxes' -> [K,4] 
 		# boxes are x1,y1,x2,y2
 
 		original_box_num = len(anno['boxes'])
@@ -873,6 +874,7 @@ def train_diva(config):
 		tfconfig.gpu_options.allow_growth = True # this way it will only allocate nessasary gpu, not take all
 
 	tfconfig.gpu_options.visible_device_list = "%s"%(",".join(["%s"%i for i in range(config.gpuid_start, config.gpuid_start+config.gpu)])) # so only this gpu will be used
+	#print tfconfig.gpu_options.visible_device_list
 	# or you can set hard limit
 	#tfconfig.gpu_options.per_process_gpu_memory_fraction = 0.4
 	with tf.Session(config=tfconfig) as sess:

@@ -7,17 +7,16 @@ from utils import Dataset, get_all_anchors, draw_boxes, box_wh_to_x1x2, get_op_t
 import numpy as np
 import cv2
 import json
-from nn import * # yikes
 import math,random,sys,os,itertools
-import tensorflow.contrib.slim as slim
-from nn import pretrained_resnet_conv4,conv2d,deconv2d,resnet_conv5,dense, pairwise_iou,get_iou_callable
+#import tensorflow.contrib.slim as slim
+from nn import pretrained_resnet_conv4,conv2d,deconv2d,resnet_conv5,dense, pairwise_iou,get_iou_callable, resizeImage, resnet_fpn_backbone, fpn_model, decode_bbox_target, generate_rpn_proposals, sample_fast_rcnn_targets, roi_align, encode_bbox_target, focal_loss, wd_cost, clip_boxes, person_object_relation, np_iou
 
 # this is for ugly batch norm
 from nn import is_training
 
 from PIL import Image
-# need this otherwise No TRTEngineOp when load a trt graph
-import tensorflow.contrib.tensorrt as trt
+# need this otherwise No TRTEngineOp when load a trt graph # no use, TensorRT doesn't support FPN ops yet
+#import tensorflow.contrib.tensorrt as trt
 
 # ------------------------------ multi gpu stuff
 PS_OPS = [
