@@ -33,6 +33,9 @@ Machine 2
 | 3       | 206268  | 1920x1080  | 1          | 57880.8     | 54.8%                   | 3.56        |
 | 2       | 206268  | 1920x1080  | 4 / 1*     | 17556.3     | 46.2%                   | 2.94        |
 | 3       | 206268  | 1920x1080  | 4 / 1*     | 14552.5     | 52.3%                   | 3.54        |
+| 5       | 206268  | 1920x1080  | 4 / 1*     | 17027.5     | 53.2%                   | 3.03        |
+| 6       | 206268  | 1920x1080  | 4 / 1*     | 13433.3     | 61.7%                   | 3.84        |
+
 
 Machine 3
 
@@ -51,9 +54,19 @@ TODO: Add input queue mechanism to improve GPU utilization.
 | 2       | tf 1.13 (CUDA 10.0 cudnn 7.4), Variable Model                           |
 | 3       | tf 1.13 (CUDA 10.0 cudnn 7.4), Frozen Graph (.pb)                       |
 | 4       | tf 1.13 (CUDA 10.0 cudnn 7.4), Frozen Graph (.pb) -> TensorRT Optimized |
+| 5       | tf 1.14.0 (CUDA 10.0 cudnn 7.4), Variable Model                         |
+| 6       | tf 1.14.0 (CUDA 10.0 cudnn 7.4), Frozen Graph (.pb)                     |
 
 
 4 / 1 * means that I run 4 single-gpu jobs in parallel, just the same as you would run in the full system.
+
+
+Conclusions:
+- TF v1.10 -> v1.13 (CUDA 9 & cuDNN v7.1 -> CUDA 10 & cuDNN v7.4) ~ +9% faster
+- Use frozen graph  ~ +30% faster
+- GTX 1080 TI -> RTX 2080 TI ~ +30% faster
+
+Note that I didn't have time to run these experiments repeatly so I expect the numbers to have large variances.
 
 To freeze the model into a .pb file:
 ```

@@ -114,7 +114,7 @@ if __name__ == "__main__":
 		# load annotation first
 		if not os.path.exists(gtfile):
 			continue
-		anno = dict(np.load(gtfile))
+		anno = dict(np.load(gtfile, allow_pickle=True))
 
 		if not os.path.exists(outfile):
 			count_no_out+=1
