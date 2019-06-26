@@ -83,7 +83,7 @@ class Trainer():
 
 			self.learning_rate = learning_rate
 		else:
-			self.learning_rate = None
+			self.learning_rate = config.init_lr
 
 		if config.optimizer == 'adadelta':
 			self.opt = tf.train.AdadeltaOptimizer(learning_rate)
