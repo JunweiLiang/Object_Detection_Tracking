@@ -252,6 +252,7 @@ These are my experiences with working on this [surveillance dataset](https://act
 4. Decoupled RCNN (using a separate Resnet-101 for box classification) slightly improves AP (Person: 0.836 -> 0.837) but takes 7x more time.
 5. SoftNMS shows mixed results and add 5% more computation time to system (since I used the CPU version). So I don't use it.
 6. Tried [Mix-up](https://arxiv.org/abs/1710.09412) by randomly mixing ground truth bounding boxes from different frames. Doesn't improve performance.
+7. Focal loss doesn't help.
 
 ## Training & Testing
 Instruction to train a new model is [here](TRAINING.md).
