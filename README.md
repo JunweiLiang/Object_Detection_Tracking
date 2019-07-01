@@ -28,7 +28,7 @@ We utilize state-of-the-art object deteciton and tracking algorithm in surveilla
 </div>
 
 ## Dependencies
-The code is originally written for Tensorflow v1.10 with Python 2.7 but it works on v1.13.1, too. Note that I didn't change the code for v1.13.1 instead I just disable Tensorflow warnings and logging. I have also tested this on tf v1.14.0 (ResNext backbone will need >=1.14 for group convolution support).
+The code is originally written for Tensorflow v1.10 with Python 2.7 but it works on v1.13.1, too. Note that I didn't change the code for v1.13.1 instead I just disable Tensorflow warnings and logging. I have also tested this on tf v1.14.0 (ResNeXt backbone will need >=1.14 for group convolution support).
 
 Other dependencies: numpy; scipy; sklearn; cv2; matplotlib; pycocotools
 
