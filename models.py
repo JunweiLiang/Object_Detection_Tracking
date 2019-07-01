@@ -411,7 +411,7 @@ class Mask_RCNN_FPN():
 		# TODO: fix global param like data_format and 
 		# [1,C,FS,FS]
 		
-		c2345 = resnet_fpn_backbone(image, config.resnet_num_block, use_gn=config.use_gn, resolution_requirement=config.fpn_resolution_requirement, use_dilations=config.use_dilations, use_deformable=config.use_deformable, tf_pad_reverse=True, freeze=config.freeze, use_basic_block=config.use_basic_block, use_se=config.use_se)
+		c2345 = resnet_fpn_backbone(image, config.resnet_num_block, use_gn=config.use_gn, resolution_requirement=config.fpn_resolution_requirement, use_dilations=config.use_dilations, use_deformable=config.use_deformable, tf_pad_reverse=True, freeze=config.freeze, use_basic_block=config.use_basic_block, use_se=config.use_se, use_resnext=config.use_resnext)
 		
 		# include lateral 1x1 conv and final 3x3 conv
 		# -> [7, 7, 256]

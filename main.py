@@ -123,6 +123,7 @@ def get_args():
 	parser.add_argument("--resnet34",action="store_true",help="")
 	parser.add_argument("--resnet18",action="store_true",help="")
 	parser.add_argument("--use_se",action="store_true",help="use squeeze and excitation in backbone")
+	parser.add_argument("--use_resnext", action="store_true")
 
 	parser.add_argument("--is_fpn",action="store_true")
 	parser.add_argument("--use_gn",action="store_true", help="whether to use group normalization")

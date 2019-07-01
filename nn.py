@@ -291,7 +291,7 @@ def GlobalAvgPooling(x, data_format='NHWC'):
 	axis = [1, 2] if data_format == 'NHWC' else [2, 3]
 	return tf.reduce_mean(x, axis, name='output')
 
-def conv2d(x, out_channel, kernel, padding="SAME", stride=1, activation=tf.identity, dilations=1, use_bias=True,data_format="NHWC", W_init=None, scope="conv"):
+def conv2d(x, out_channel, kernel, padding="SAME", stride=1, activation=tf.identity, dilations=1, use_bias=True,data_format="NHWC", W_init=None, split=1, scope="conv"):
 	with tf.variable_scope(scope):
 		in_shape = x.get_shape().as_list()
 
@@ -302,7 +302,12 @@ def conv2d(x, out_channel, kernel, padding="SAME", stride=1, activation=tf.ident
 
 		kernel_shape = [kernel,kernel]
 
-		filter_shape = kernel_shape + [in_channel,out_channel]
+		filter_shape = kernel_shape + [in_channel, out_channel]
+
+		# group conv implementation
+		if split != 1:
+			assert out_channel % split == 0
+			filter_shape = kernel_shape + [in_channel / split, out_channel]
 
 		if data_format == "NHWC":
 			stride = [1, stride, stride,1]
@@ -318,12 +323,14 @@ def conv2d(x, out_channel, kernel, padding="SAME", stride=1, activation=tf.ident
 
 		conv = tf.nn.conv2d(x, W, stride, padding, dilations=dilations, data_format=data_format)
 
+		assert conv is not None, "Group conv needs tf 1.14+"
+
 		if use_bias:
 			b_init = tf.constant_initializer()
 			b = tf.get_variable('b', [out_channel], initializer=b_init)
 			conv = tf.nn.bias_add(conv,b,data_format=data_format)
 
-		ret = activation(conv,name="output")
+		ret = activation(conv, name="output")
 
 	return ret
 
@@ -406,11 +413,11 @@ def resnet_basicblock(l, ch_out, stride,  dilations=1, deformable=False, tf_pad_
 	l = conv2d(l, ch_out, 3, stride=stride, activation=NormReLU, use_bias=False, data_format="NCHW", scope='conv1')
 	l = conv2d(l, ch_out, 3, use_bias=False, activation=get_bn(use_gn, zero_init=True), data_format="NCHW", scope='conv2')
 	out = l + resnet_shortcut(shortcut, ch_out, stride, activation=get_bn(use_gn, zero_init=False), data_format="NCHW")
-	return tf.nn.relu(out)
+	return out
 
 
 def resnet_bottleneck(l, ch_out, stride, dilations=1, deformable=False, tf_pad_reverse=False, use_gn=False, use_se=False):
-	l, shortcut = l, l
+	shortcut = l
 	if use_gn:
 		NormReLU = GNReLU
 	else:
@@ -448,6 +455,19 @@ def resnet_bottleneck(l, ch_out, stride, dilations=1, deformable=False, tf_pad_r
 		l = l * tf.reshape(squeeze, shape)
 
 	return l + resnet_shortcut(shortcut, ch_out * 4, stride, activation=get_bn(use_gn,zero_init=False),data_format="NCHW")
+
+
+def resnext_32x4d_bottleneck(l, ch_out, stride, dilations=1, deformable=False, tf_pad_reverse=False, use_gn=False, use_se=False):
+	shortcut = l
+
+	l = conv2d(l, ch_out * 2, 1, stride=1, activation=BNReLU, scope='conv1', use_bias=False, data_format="NCHW")
+
+	l = conv2d(l, ch_out * 2, 3, stride=stride, activation=BNReLU, scope='conv2', split=32, use_bias=False,data_format="NCHW")
+
+	l = conv2d(l, ch_out * 4, 1, activation=get_bn(False, zero_init=True), scope='conv3', use_bias=False,data_format="NCHW")
+	
+	out = l + resnet_shortcut(shortcut, ch_out * 4, stride, activation=get_bn(False, zero_init=False), data_format="NCHW")
+	return out
 
 def resnet_shortcut(l, n_out, stride, activation=tf.identity,data_format="NCHW",use_gn=False):
 	n_in = l.get_shape().as_list()[1 if data_format == 'NCHW' else 3]
@@ -807,7 +827,7 @@ def resnet_conv5(image,num_block,reuse=False,tf_pad_reverse=False):
 	return l
 
 # fpn_resolution_requirement is 32 by default FPN
-def resnet_fpn_backbone(image, num_blocks,resolution_requirement, use_deformable=False, use_dilations=False, tf_pad_reverse=False,finer_resolution=False,freeze=0,use_gn=False,use_basic_block=False, use_se=False):
+def resnet_fpn_backbone(image, num_blocks,resolution_requirement, use_deformable=False, use_dilations=False, tf_pad_reverse=False,finer_resolution=False,freeze=0,use_gn=False,use_basic_block=False, use_se=False, use_resnext=False):
 	assert len(num_blocks) == 4
 	shape2d = tf.shape(image)[2:]
 
@@ -827,6 +847,8 @@ def resnet_fpn_backbone(image, num_blocks,resolution_requirement, use_deformable
 	block_func = resnet_bottleneck
 	if use_basic_block:
 		block_func = resnet_basicblock
+	if use_resnext:
+		block_func = resnext_32x4d_bottleneck
 
 	pad_base = maybe_reverse_pad(2, 3,tf_pad_reverse)
 	
