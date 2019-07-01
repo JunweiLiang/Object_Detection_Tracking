@@ -1,6 +1,6 @@
 # CMU Object Detection & Tracking for Surveillance Video Activity Detection
 
-This repository contains the code and models for object detection and tracking from the CMU [DIVA](https://www.iarpa.gov/index.php/research-programs/diva) system. Our system (INF & MUDSML) achieves the **best performance** on the ActEv [leaderboard](https://actev.nist.gov/prizechallenge#tab_leaderboard) ([Cache](https://www.cs.cmu.edu/~junweil/resources/actev-prizechallenge-06-2019.png)). 
+This repository contains the code and models for object detection and tracking from the CMU [DIVA](https://www.iarpa.gov/index.php/research-programs/diva) system. Our system (INF & MUDSML) achieves the **best performance** on the ActEv [leaderboard](https://actev.nist.gov/prizechallenge#tab_leaderboard) ([Cached](https://www.cs.cmu.edu/~junweil/resources/actev-prizechallenge-06-2019.png)). 
 
 If you find this code useful in your research then please cite
 
