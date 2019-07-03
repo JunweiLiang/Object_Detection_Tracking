@@ -461,8 +461,8 @@ def resnext_32x4d_bottleneck(l, ch_out, stride, dilations=1, deformable=False, t
 	shortcut = l
 
 	l = conv2d(l, ch_out * 2, 1, stride=1, activation=BNReLU, scope='conv1', use_bias=False, data_format="NCHW")
-
-	l = conv2d(l, ch_out * 2, 3, stride=stride, activation=BNReLU, scope='conv2', split=32, use_bias=False,data_format="NCHW")
+	
+	l = conv2d(l, ch_out * 2, 3, dilations=dilations, stride=stride, activation=BNReLU, scope='conv2', split=32, use_bias=False,data_format="NCHW")
 
 	l = conv2d(l, ch_out * 4, 1, activation=get_bn(False, zero_init=True), scope='conv3', use_bias=False,data_format="NCHW")
 	
