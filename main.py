@@ -33,7 +33,7 @@ from utils import Dataset, Summary, nms_wrapper, FIFO_ME
 
 from pycocotools.coco import COCO
 # for using a COCO model to finetuning with DIVA data.
-from class_ids import targetClass1to1, targetClass2id, targetAct2id,targetAct2id_wide,targetAct2id_tall, targetSingleAct2id, targetPairAct2id,targetClass2id_tall,targetClass2id_wide,targetClass2id_wide_v2,targetClass2id_mergeProp,targetClass2id_new,targetClass2id_new_nopo, targetAct2id_bupt
+from class_ids import targetClass1to1, targetClass2id, targetAct2id,targetAct2id_wide,targetAct2id_tall, targetSingleAct2id, targetPairAct2id,targetClass2id_tall,targetClass2id_wide,targetClass2id_wide_v2,targetClass2id_mergeProp,targetClass2id_new,targetClass2id_new_nopo, targetAct2id_bupt, bupt_act_mapping
 
 targetid2class = {targetClass2id[one]:one for one in targetClass2id}
 
@@ -372,12 +372,9 @@ def get_args():
 		targetid2class = {targetAct2id[one]:one for one in targetAct2id}
 
 	if args.bupt_exp:
-		args.add_act = True
 		args.act_as_obj = True
 		targetClass2id = targetAct2id_bupt
-		targetid2class = {targetAct2id[one]:one for one in targetAct2id_bupt}
-		targetid2class[1] = "Person-Vehicle"
-		targetid2class[2] = "Vehicle-Turning"
+		targetid2class = {targetAct2id_bupt[one]:one for one in targetAct2id_bupt}
 		
 
 	if not args.tococo:
@@ -621,7 +618,10 @@ def read_data_diva(config, idlst, framepath, annopath, tococo=False, randp=None,
 		no_so_box = True
 		no_object = True
 		for i,classname in enumerate(list(anno['labels'])):
-			if targetClass2id.has_key(classname):
+			if targetClass2id.has_key(classname) or (
+					config.bupt_exp and bupt_act_mapping.has_key(classname)):
+				if config.bupt_exp and bupt_act_mapping.has_key(classname):
+					classname = bupt_act_mapping[classname]
 				targetClass2exist[classname] = 1
 				labels.append(targetClass2id[classname])
 				boxes.append(anno['boxes'][i])
@@ -833,6 +833,8 @@ def train_diva(config):
 
 	if config.act_as_obj:
 		eval_target = ["vehicle_turning_right","vehicle_turning_left","Unloading","Transport_HeavyCarry","Opening","Open_Trunk","Loading","Exiting","Entering","Closing_Trunk","Closing","Interacts","Pull","Riding","Talking","activity_carrying","specialized_talking_phone","specialized_texting_phone"] # "vehicle_u_turn" is not used since not exists in val set
+		if config.bupt_exp:
+			eval_target = ["Person-Vehicle", "Vehicle-Turning", "Transport_HeavyCarry","Pull","Riding","Talking","activity_carrying","specialized_talking_phone","specialized_texting_phone"]
 
 		eval_target = {one:1 for one in eval_target}
 		eval_target_weight ={one:1.0/len(eval_target) for one in eval_target}

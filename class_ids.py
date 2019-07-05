@@ -360,18 +360,9 @@ person-only:
 
 targetAct2id_bupt = {
 	"BG":0,
-	"Closing": 1,
-	"Opening": 1,
-	"Exiting": 1,
-	"Entering": 1,
-	"Unloading": 1,
-	"Loading": 1,
-	"Open_Trunk": 1,
-	"Closing_Trunk": 1,
+	"Person-Vehicle": 1,
 
-	"vehicle_turning_right": 2,
-	"vehicle_turning_left": 2,
-	"vehicle_u_turn": 2,
+	"Vehicle-Turning": 2,
 
 	"activity_carrying": 3,
 	"Transport_HeavyCarry": 4,
@@ -380,4 +371,19 @@ targetAct2id_bupt = {
 	"Riding": 7,
 	"specialized_texting_phone": 8,
 	"specialized_talking_phone": 9,
+}
+
+bupt_act_mapping = {
+	"Closing": "Person-Vehicle",
+	"Opening": "Person-Vehicle",
+	"Exiting": "Person-Vehicle",
+	"Entering": "Person-Vehicle",
+	"Unloading": "Person-Vehicle",
+	"Loading": "Person-Vehicle",
+	"Open_Trunk": "Person-Vehicle",
+	"Closing_Trunk": "Person-Vehicle",
+
+	"vehicle_turning_right": "Vehicle-Turning",
+	"vehicle_turning_left": "Vehicle-Turning",
+	"vehicle_u_turn": "Vehicle-Turning"
 }
