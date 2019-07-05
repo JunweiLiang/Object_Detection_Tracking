@@ -19,7 +19,7 @@ from models import get_model
 from trainer import Trainer
 from tester import Tester
 import math, time, json, random, operator
-import cPickle as pickle
+import pickle
 
 import tensorflow as tf
 import pycocotools.mask as cocomask
@@ -31,6 +31,22 @@ from utils import evalcoco, match_detection, computeAP, computeAR, computeAR_2, 
 
 from utils import Dataset, Summary, nms_wrapper, FIFO_ME
 
+from pycocotools.coco import COCO
+# for using a COCO model to finetuning with DIVA data.
+from class_ids import targetClass1to1, targetClass2id, targetAct2id,targetAct2id_wide,targetAct2id_tall, targetSingleAct2id, targetPairAct2id,targetClass2id_tall,targetClass2id_wide,targetClass2id_wide_v2,targetClass2id_mergeProp,targetClass2id_new,targetClass2id_new_nopo, targetAct2id_bupt
+
+targetid2class = {targetClass2id[one]:one for one in targetClass2id}
+
+targetactid2class = {targetAct2id[one]:one for one in targetAct2id}
+
+targetsingleactid2class = {targetSingleAct2id[one]:one for one in targetSingleAct2id}
+
+eval_target = {
+	"Vehicle":["car","motorcycle","bus","truck","vehicle"],
+	"Person":"person",
+}
+
+eval_best = "Person" # not used anymore, we use average as the best metric
 
 def get_args():
 	global targetClass2id, targetid2class
@@ -90,6 +106,9 @@ def get_args():
 	parser.add_argument("--act_as_obj",action="store_true",help="activity box as obj box")
 
 	parser.add_argument("--add_act",action="store_true",help="add activitiy model")
+
+	# 07/2019
+	parser.add_argument("--bupt_exp", action="store_true", help="bupt activity box exp")
 
 	parser.add_argument("--fix_obj_model",action="store_true",help="fix the object detection part including rpn")
 	# v1:
@@ -314,10 +333,13 @@ def get_args():
 	assert args.gpu*args.model_per_gpu == args.im_batch_size # one gpu one image
 	#args.controller = "/cpu:0" # parameter server
 
-	if args.add_act:
-		assert len(targetAct2id) == args.num_act_class, (len(targetAct2id),args.num_act_class)
-		assert len(targetSingleAct2id) == args.num_act_single_class, (len(targetSingleAct2id), args.num_act_single_class)
-		assert len(targetPairAct2id) == args.num_act_pair_class
+
+
+
+	# if args.add_act:
+	#	assert len(targetAct2id) == args.num_act_class, (len(targetAct2id),args.num_act_class)
+	#	assert len(targetSingleAct2id) == args.num_act_single_class, (len(targetSingleAct2id), args.num_act_single_class)
+	#	assert len(targetPairAct2id) == args.num_act_pair_class
 
 	targetid2class = targetid2class
 	targetClass2id = targetClass2id
@@ -348,12 +370,21 @@ def get_args():
 		# replace the obj class with actitivy class
 		targetClass2id = targetAct2id
 		targetid2class = {targetAct2id[one]:one for one in targetAct2id}
+
+	if args.bupt_exp:
+		args.add_act = True
+		args.act_as_obj = True
+		targetClass2id = targetAct2id_bupt
+		targetid2class = {targetAct2id[one]:one for one in targetAct2id_bupt}
+		targetid2class[1] = "Person-Vehicle"
+		targetid2class[2] = "Vehicle-Turning"
 		
+
 	if not args.tococo:
-		assert len(targetClass2id) == args.num_class
+		assert len(targetid2class) == args.num_class
 
 	if not args.tococo and ((args.mode == "train") or (args.mode == "test")):
-		assert args.num_class == len(targetClass2id.keys())
+		assert args.num_class == len(targetid2class.keys())
 	args.class_names = targetClass2id.keys()
 
 	if args.vis_pre:
@@ -490,12 +521,12 @@ def get_args():
 	#args.result_per_im = 100 # 400 # 100
 
 	if args.focal_loss and args.clip_gradient_norm is None:
-		print "Focal loss needs gradient clipping or will have NaN loss"
+		print("Focal loss needs gradient clipping or will have NaN loss")
 		sys.exit()
 
 	return args
 
-from pycocotools.coco import COCO
+
 
 def add_coco(config,datajson):
 	coco = COCO(datajson)
@@ -510,28 +541,14 @@ def add_coco(config,datajson):
 	config.classId_to_class = {i:c for i,c in enumerate(config.class_names)}
 
 
-# for using a COCO model to finetuning with DIVA data.
-from class_ids import targetClass1to1, targetClass2id, targetAct2id,targetAct2id_wide,targetAct2id_tall, targetSingleAct2id, targetPairAct2id,targetClass2id_tall,targetClass2id_wide,targetClass2id_wide_v2,targetClass2id_mergeProp,targetClass2id_new,targetClass2id_new_nopo
 
-targetid2class = {targetClass2id[one]:one for one in targetClass2id}
-
-targetactid2class = {targetAct2id[one]:one for one in targetAct2id}
-
-targetsingleactid2class = {targetSingleAct2id[one]:one for one in targetSingleAct2id}
-
-eval_target = {
-	"Vehicle":["car","motorcycle","bus","truck","vehicle"],
-	"Person":"person",
-}
-
-eval_best = "Person" # not used anymore, we use average as the best metric
 
 # load all ground truth into memory
 def read_data_diva(config, idlst, framepath, annopath, tococo=False, randp=None, is_train=False):
 	assert idlst is not None
 	assert framepath is not None
 	assert annopath is not None
-	assert len(targetClass2id.keys()) == config.num_class
+	assert len(targetid2class.keys()) == config.num_class
 
 	# load the coco class name to classId so we could convert the label name to label classId
 	if tococo:
@@ -546,7 +563,7 @@ def read_data_diva(config, idlst, framepath, annopath, tococo=False, randp=None,
 	if config.use_mixup and is_train:
 		data['mixup_weights'] = []
 
-	print "loading data.."
+	print("loading data..")
 	if config.print_params:
 		imgs = imgs[:100]
 
@@ -571,12 +588,12 @@ def read_data_diva(config, idlst, framepath, annopath, tococo=False, randp=None,
 		imgs.sort()
 		ori_num = len(imgs)
 		imgs = imgs[config.train_skip_offset::config.train_skip]
-		print "skipping [%s::%s], got %s/%s"%(config.train_skip_offset,config.train_skip,len(imgs),ori_num)
+		print("skipping [%s::%s], got %s/%s"%(config.train_skip_offset,config.train_skip,len(imgs),ori_num))
 	if (config.val_skip > 1) and not is_train:
 		imgs.sort()
 		ori_num = len(imgs)
 		imgs = imgs[config.val_skip_offset::config.val_skip]
-		print "skipping [%s::%s], got %s/%s"%(config.val_skip_offset,config.val_skip,len(imgs),ori_num)
+		print("skipping [%s::%s], got %s/%s"%(config.val_skip_offset,config.val_skip,len(imgs),ori_num))
 
 
 	# get starts for each img, the label distribution
@@ -726,37 +743,37 @@ def read_data_diva(config, idlst, framepath, annopath, tococo=False, randp=None,
 			data['imgs'].append(os.path.join(framepath,videoname,"%s.jpg"%img))
 			data['gt'].append(anno)
 
-	print "loaded %s/%s data"%(len(data['imgs']),len(imgs))
+	print("loaded %s/%s data"%(len(data['imgs']),len(imgs)))
 
 	if config.show_stat:
 		for classname in label_dist:
 			d = label_dist[classname]
 			ratios = [a/float(b) for a,b in zip(d, label_dist_all)]
-			print "%s, [%s - %s], median %s per img, ratio:[%.3f - %.3f], median %.3f, no label %s/%s [%.3f]"%(classname, min(d), max(d), np.median(d), min(ratios), max(ratios), np.median(ratios), len([i for i in d if i==0]), len(d),len([i for i in d if i==0])/float(len(d)))
-		print "each img has boxes: [%s - %s], median %s"%(min(label_dist_all),max(label_dist_all),np.median(label_dist_all),)
+			print("%s, [%s - %s], median %s per img, ratio:[%.3f - %.3f], median %.3f, no label %s/%s [%.3f]"%(classname, min(d), max(d), np.median(d), min(ratios), max(ratios), np.median(ratios), len([i for i in d if i==0]), len(d),len([i for i in d if i==0])/float(len(d))))
+		print("each img has boxes: [%s - %s], median %s"%(min(label_dist_all),max(label_dist_all),np.median(label_dist_all),))
 
 
 	if len(ignored_classes) > 0:
-		print "ignored %s "%(ignored_classes.keys())
+		print("ignored %s "%(ignored_classes.keys()))
 	noDataClasses = [classname for classname in targetClass2exist if targetClass2exist[classname] ==0]
 	if len(noDataClasses) > 0:
-		print "warning: class data not exists: %s, AR will be 1.0 for these"%(noDataClasses)
+		print("warning: class data not exists: %s, AR will be 1.0 for these"%(noDataClasses))
 	if config.add_act:
 		if config.act_v2:
-			print " each frame positive act box percentage min %.4f, max %.4f, mean %.4f"%(min(act_single_fgratio),max(act_single_fgratio),np.mean(act_single_fgratio))
+			print(" each frame positive act box percentage min %.4f, max %.4f, mean %.4f"%(min(act_single_fgratio),max(act_single_fgratio),np.mean(act_single_fgratio)))
 			if len(ignored_single_act_classes) > 0:
-				print "ignored activity %s"%(ignored_single_act_classes.keys())
-			print "%s/%s has no single activity boxes"%(num_empty_single_actboxes, len(data['imgs']))
+				print("ignored activity %s"%(ignored_single_act_classes.keys()))
+			print("%s/%s has no single activity boxes"%(num_empty_single_actboxes, len(data['imgs'])))
 			noDataClasses = [classname for classname in targetAct2exist_single if targetAct2exist_single[classname] ==0]
 			if len(noDataClasses) > 0:
-				print "warning: single activity class data not exists: %s, "%(noDataClasses)
+				print("warning: single activity class data not exists: %s, "%(noDataClasses))
 		else:
 			if len(ignored_act_classes) > 0:
-				print "ignored activity %s"%(ignored_act_classes.keys())
-			print "%s/%s has no activity boxes"%(num_empty_actboxes, len(data['imgs']))
+				print("ignored activity %s"%(ignored_act_classes.keys()))
+			print("%s/%s has no activity boxes"%(num_empty_actboxes, len(data['imgs'])))
 			noDataClasses = [classname for classname in targetAct2exist if targetAct2exist[classname] ==0]
 			if len(noDataClasses) > 0:
-				print "warning: activity class data not exists: %s, "%(noDataClasses)
+				print("warning: activity class data not exists: %s, "%(noDataClasses))
 
 
 	return Dataset(data,add_gt=True)
@@ -892,7 +909,7 @@ def train_diva(config):
 				if not_show:
 					continue
 				shape = var.get_shape()
-				print "%s %s\n"%(var.name,shape)
+				print("%s %s\n"%(var.name,shape))
 			sys.exit()
 
 		isStart = True
@@ -940,7 +957,7 @@ def train_diva(config):
 
 							# rememember the scale and original image
 							ori_shape = image.shape[:2]
-							#print image.shape, resized_image.shape
+							#print(image.shape, resized_image.shape
 							# average H/h and W/w ?
 							scale = (resized_image.shape[0]*1.0/image.shape[0] + resized_image.shape[1]*1.0/image.shape[1])/2.0
 
@@ -1108,7 +1125,7 @@ def train_diva(config):
 
 				isStart = False
 				if config.exit_after_val:
-					print "exit after eval."
+					print("exit after eval.")
 					break
 
 			# skip if the batch is not complete, usually the last few ones
@@ -1119,16 +1136,16 @@ def train_diva(config):
 				#loss, rpn_label_loss, rpn_box_loss, fastrcnn_label_loss, fastrcnn_box_loss, train_op,act_losses = trainer.step(sess,batch)
 				loss, wds, rpn_label_losses, rpn_box_losses, fastrcnn_label_losses, fastrcnn_box_losses, so_label_losses, act_losses, lr = trainer.step(sess,batch)
 			except Exception as e:
-				print e
+				print(e)
 				bs = batch[1]
-				print "trainer error, batch files:%s"%([b.data['imgs'] for b in bs])
+				print("trainer error, batch files:%s"%([b.data['imgs'] for b in bs]))
 				sys.exit()
 
 			if math.isnan(loss):
 				tqdm.write("warning, nan loss: loss:%s,rpn_label_loss:%s, rpn_box_loss:%s, fastrcnn_label_loss:%s, fastrcnn_box_loss:%s"%(loss, rpn_label_losses, rpn_box_losses, fastrcnn_label_losses, fastrcnn_box_losses))
 				if config.add_act:
 					tqdm.write("\tact_losses:%s"%(act_losses))
-				print "batch:%s"%(batch[1][0].data['imgs'])
+				print("batch:%s"%(batch[1][0].data['imgs']))
 				sys.exit()
 
 			# use moving average to compute loss
@@ -1157,7 +1174,7 @@ def train_diva(config):
 
 		# save the last model
 		if global_step % config.save_period != 0: # time to save model
-			print "saved last model without evaluation."
+			print("saved last model without evaluation.")
 			saver.save(sess,os.path.join(config.save_dir,"model"),global_step=global_step)
 			
 		if config.write_self_sum:
@@ -1173,7 +1190,7 @@ def boxfeat(config):
 
 	images = [line.strip() for line in open(config.imgpath,"r").readlines()]
 
-	print "total images to test:%s"%len(images)
+	print("total images to test:%s"%len(images))
 
 	if not os.path.exists(config.boxfeatpath):
 		os.makedirs(config.boxfeatpath)
@@ -1213,11 +1230,11 @@ def boxfeat(config):
 
 			# for debug
 			"""
-			print feature.shape
-			print label_probs.shape
+			print(feature.shape
+			print(label_probs.shape
 
 			for i,label_prob in enumerate(label_probs):
-				print label_prob.shape
+				print(label_prob.shape
 				label = np.argmax(label_prob)
 
 				cat_name = config.class_names[label]
@@ -1225,11 +1242,11 @@ def boxfeat(config):
 				ori_cat_name = this_data['cat_names'][i]
 				ori_cat_id = config.class_to_classId[ori_cat_name]
 
-				print "argmax label index:%s, cat_name:%s,logit:%s"%(label,cat_name,label_prob[label])
+				print("argmax label index:%s, cat_name:%s,logit:%s"%(label,cat_name,label_prob[label])
 				if label == 0: # 0 is BG, let's get second largest
 					label2 = label_prob.argsort()[-2:][::-1][1]
-					print "argmax 2nd label index:%s, cat_name:%s,logit:%s"%(label2,config.class_names[label2],label_prob[label2])
-				print "original label cat_name:%s,cat_id:%s,cur_logits:%s"%(ori_cat_name,ori_cat_id,label_prob[ori_cat_id])
+					print("argmax 2nd label index:%s, cat_name:%s,logit:%s"%(label2,config.class_names[label2],label_prob[label2])
+				print("original label cat_name:%s,cat_id:%s,cur_logits:%s"%(ori_cat_name,ori_cat_id,label_prob[ori_cat_id])
 			sys.exit()
 			"""
 
@@ -1241,7 +1258,7 @@ def givenbox(config):
 
 	images = [line.strip() for line in open(config.imgpath,"r").readlines()]
 
-	print "total images to test:%s"%len(images)
+	print("total images to test:%s"%len(images))
 
 	if not os.path.exists(config.outbasepath):
 		os.makedirs(config.outbasepath)
@@ -1335,7 +1352,7 @@ def forward(config):
 		assert config.is_fpn
 		if not os.path.exists(config.feat_path):
 			os.makedirs(config.feat_path)
-		print "also extracting fpn features"
+		print("also extracting fpn features")
 
 	all_images = [line.strip() for line in open(config.imgpath,"r").readlines()]
 
@@ -1343,10 +1360,10 @@ def forward(config):
 		all_images.sort()
 		ori_num = len(all_images)
 		all_images = all_images[::config.forward_skip]
-		print "skiiping %s, got %s/%s"%(config.forward_skip, len(all_images), ori_num)
+		print("skiiping %s, got %s/%s"%(config.forward_skip, len(all_images), ori_num))
 
 
-	print "total images to test:%s"%len(all_images)
+	print("total images to test:%s"%len(all_images))
 
 	if config.use_small_object_head:
 		if not os.path.exists(config.so_outpath):
@@ -1519,7 +1536,7 @@ def forward(config):
 					else:
 						if config.extract_feat:
 							final_boxes, final_labels, final_probs, final_feat = output
-							#print final_feats.shape# [1,7,7,256]
+							#print(final_feats.shape# [1,7,7,256]
 							# save the features
 							
 							featfile = os.path.join(config.feat_path, "%s.npy"%imagename)
@@ -1709,7 +1726,7 @@ def videofeat(config):
 	# imgpath is the frame path,
 	# need videolst
 	# we get all the image first
-	print "getting imglst..."
+	print("getting imglst...")
 	imgs = {}# videoname -> frames
 	total=0
 	for videoname in [os.path.splitext(os.path.basename(l.strip()))[0] for l in open(config.videolst).readlines()]:
@@ -1719,7 +1736,7 @@ def videofeat(config):
 		frames = frames[::config.forward_skip] # some only have 1-3 frames
 		imgs[videoname] = frames
 		total+=len(frames)
-	print "done, got %s imgs"%total
+	print("done, got %s imgs"%total)
 
 
 	#model = get_model(config) # input image -> final_box, final_label, final_masks
@@ -1848,7 +1865,7 @@ def forward_coco(dataset,num_batches,config,sess,tester,resize=True):
 
 			# rememember the scale and original image
 			ori_shape = image.shape[:2]
-			#print image.shape, resized_image.shape
+			#print(image.shape, resized_image.shape
 			# average H/h and W/w ?
 			scale = (resized_image.shape[0]*1.0/image.shape[0] + resized_image.shape[1]*1.0/image.shape[1])/2.0
 
@@ -1893,8 +1910,8 @@ def forward_coco(dataset,num_batches,config,sess,tester,resize=True):
 				}
 				pred.append(res)
 
-		#print [(one['category_id'],one['score'],one['bbox']) for one in pred]
-		#print imageId
+		#print([(one['category_id'],one['score'],one['bbox']) for one in pred]
+		#print(imageId
 		#sys.exit()
 
 	return pred
@@ -1904,7 +1921,7 @@ def forward_coco(dataset,num_batches,config,sess,tester,resize=True):
 def test(config):
 	test_data = read_data_coco(config.datajson,config=config,add_gt=False,load_coco_class=True)
 	
-	print "total testing samples:%s"%test_data.num_examples
+	print("total testing samples:%s"%test_data.num_examples)
 	
 	#model = get_model(config) # input image -> final_box, final_label, final_masks
 	#tester = Tester(model,config,add_mask=config.add_mask)
@@ -1956,7 +1973,7 @@ def test(config):
 				gt[imageid][cat_id].append(one['bbox'])
 
 
-			print "total category:%s"%len(all_cat_ids)
+			print("total category:%s"%len(all_cat_ids))
 
 			# get the aps/ars for each frame
 			dt = {} # imageid -> cat_id -> {boxes,scores}
@@ -2054,9 +2071,9 @@ def test(config):
 			mean_ap = np.mean([aps[catId] for catId in aps])
 			mean_ar = np.mean([ars[catId] for catId in ars])
 			took = time.time() - start
-			print "total dt image:%s, gt image:%s"%(len(dt),len(gt))
+			print("total dt image:%s, gt image:%s"%(len(dt),len(gt)))
 
-			print "mean AP with IoU 0.5:%s, mean AR with max detection %s:%s, took %s seconds"%(mean_ap,maxDet,mean_ar,took)
+			print("mean AP with IoU 0.5:%s, mean AR with max detection %s:%s, took %s seconds"%(mean_ap,maxDet,mean_ar,took))
 
 
 # https://stackoverflow.com/questions/38160940/how-to-count-total-number-of-trainable-parameters-in-a-tensorflow-model
@@ -2123,7 +2140,7 @@ if __name__ == "__main__":
 
 		if config.log_time_and_gpu:
 			end_time = time.time()
-			print "total run time %s (%s), log gpu utilize every %s seconds and get median %.2f%% and average %.2f%%. GPU temperature median %.2f and average %.2f (C)" % (
+			print("total run time %s (%s), log gpu utilize every %s seconds and get median %.2f%% and average %.2f%%. GPU temperature median %.2f and average %.2f (C)" % (
 				sec2time(end_time - start_time),
 				end_time - start_time,
 				gpu_log_interval,
@@ -2131,4 +2148,4 @@ if __name__ == "__main__":
 				np.mean(gpu_util_logs)*100,
 				np.median(gpu_temp_logs),
 				np.mean(gpu_temp_logs),
-			)
+			))

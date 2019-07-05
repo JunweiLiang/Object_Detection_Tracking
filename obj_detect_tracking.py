@@ -17,7 +17,7 @@ import cv2
 from models import get_model, resizeImage
 
 import math, time, json, random, operator
-import cPickle as pickle
+import pickle
 import pycocotools.mask as cocomask
 from deep_sort import nn_matching
 from deep_sort.detection import Detection
@@ -275,7 +275,7 @@ def check_args(args):
 		assert args.box_feat_path is not None
 		if not os.path.exists(args.box_feat_path):
 			os.makedirs(args.box_feat_path)
-	#print "cv2 version %s" % (cv2.__version__)
+	#print("cv2 version %s" % (cv2.__version__)
 
 
 if __name__ == "__main__":
@@ -438,7 +438,7 @@ if __name__ == "__main__":
 					sess_input = [model.final_boxes, model.final_labels, model.final_probs]
 
 					final_boxes, final_labels, final_probs = sess.run(sess_input, feed_dict=feed_dict)
-				# print "sess run done"
+				# print("sess run done"
 				# scale back the box to original image size
 				final_boxes = final_boxes / scale
 
@@ -476,7 +476,7 @@ if __name__ == "__main__":
 
 				# for visualization
 				if args.visualize:
-					good_ids = [i for i in xrange(len(final_boxes)) if final_probs[i] >= args.vis_thres]
+					good_ids = [i for i in range(len(final_boxes)) if final_probs[i] >= args.vis_thres]
 					final_boxes, final_labels, final_probs = final_boxes[good_ids], final_labels[good_ids], final_probs[
 						good_ids]
 					vis_boxes = np.asarray([[box[0], box[1], box[2] + box[0], box[3] + box[1]] for box in final_boxes])
@@ -499,9 +499,9 @@ if __name__ == "__main__":
 					output_file = os.path.join(output_dir, '{}.txt'.format(videoname.split('.')[0]))
 					# output_file = os.path.join(tracking_dir, '{}.txt'.format(videoname.split('.')[0]))
 					tracking_results = sorted(tracking_results_dict[tracking_obj], key=lambda x: (x[0], x[1]))
-					# print len(tracking_results)
+					# print(len(tracking_results)
 					tracking_data = np.asarray(tracking_results)
-					# print tracking_data.shape
+					# print(tracking_data.shape
 					tracking_data = linear_inter_bbox(tracking_data, args.frame_gap)
 					tracking_data = filter_short_objs(tracking_data)
 					tracking_results = tracking_data.tolist()

@@ -102,7 +102,7 @@ def pack(config):
 		with open(config.pack_modelconfig_path, "w") as f:
 			json.dump(config_json, f)
 
-		print "saving packed model..."
+		print("saving packed model...")
 		# put into one big file to save
 		input_graph_def = tf.get_default_graph().as_graph_def()
 		#print [n.name for n in input_graph_def.node]
@@ -122,9 +122,9 @@ def pack(config):
 		# Finally we serialize and dump the output graph to the filesystem
 		with tf.gfile.GFile(output_graph, "wb") as f:
 			f.write(output_graph_def.SerializeToString())
-		print "%d ops in the final graph." % len(output_graph_def.node)
+		print("%d ops in the final graph." % len(output_graph_def.node))
 		
-		print "model saved in %s, config record is in %s"%(config.pack_model_path, config.pack_modelconfig_path)
+		print("model saved in %s, config record is in %s"%(config.pack_model_path, config.pack_modelconfig_path))
 
 # load the weights at init time
 # this class has the same interface as Mask_RCNN_FPN
@@ -161,8 +161,6 @@ class Mask_RCNN_FPN_frozen():
 		self.final_probs = self.graph.get_tensor_by_name("%s/final_probs:0"%self.var_prefix)
 
 		self.fpn_box_feat = self.graph.get_tensor_by_name("%s/fpn_box_feat:0"%self.var_prefix)
-
-		print "loaded %s"%(modelpath)
 
 	def get_feed_dict_forward(self, imgdata):
 		feed_dict = {}
@@ -424,7 +422,7 @@ class Mask_RCNN_FPN():
 		self.fpn_feature = tf.image.resize_images(tf.transpose(p23456[3], perm=[0, 2, 3, 1]), (7, 7)) # p5 # default bilinear
 
 		if config.no_obj_detect: # pair with extract_feat, so only extract feature
-			print "no object detect branch.."
+			print("no object detect branch..")
 			return True
 		# given the numpy anchor for each stride, 
 		# slice the anchor box and label against the feature map size on each level. Again?
@@ -1243,7 +1241,7 @@ class Mask_RCNN_FPN():
 				imgname = os.path.splitext(os.path.basename(batch.data['imgs'][0]))[0]
 				cv2.imwrite("%s.ori.jpg"%os.path.join(config.vis_path,imgname),ori_vis)
 				cv2.imwrite("%s.prepro.jpg"%os.path.join(config.vis_path,imgname),new_vis)
-				print "viz saved in %s"%config.vis_path
+				print("viz saved in %s"%config.vis_path)
 				sys.exit()
 
 			# get rpn anchor labels
@@ -1601,7 +1599,7 @@ class RCNN_FPN_givenbox():
 def initialize(load,load_best,config,sess):
 	tf.global_variables_initializer().run()
 	if load:
-		print "restoring model..."
+		print("restoring model...")
 		allvars = tf.global_variables()
 		allvars = [var for var in allvars if "global_step" not in var.name]
 		#restore_vars = allvars
@@ -1626,12 +1624,12 @@ def initialize(load,load_best,config,sess):
 				for ivar in ignore_vars:
 					if ivar in var.name:
 						ignore_it=True
-						print "ignored %s"%var.name
+						print("ignored %s"%var.name)
 						break
 				if not ignore_it:
 					restore_vars.append(var)
 
-			print "ignoring %s variables, original %s vars, restoring for %s vars"% (len(ignore_vars),len(allvars),len(restore_vars))
+			print("ignoring %s variables, original %s vars, restoring for %s vars"% (len(ignore_vars),len(allvars),len(restore_vars)))
 
 		else:
 			restore_vars = allvars
@@ -1652,9 +1650,9 @@ def initialize(load,load_best,config,sess):
 		if ckpt and ckpt.model_checkpoint_path:
 			loadpath = ckpt.model_checkpoint_path
 			saver.restore(sess, loadpath)
-			print "Model:"
-			print "\tloaded %s"%loadpath
-			print ""
+			print("Model:")
+			print("\tloaded %s"%loadpath)
+			print("")
 		else:
 			if os.path.exists(load_from): 
 				if load_from.endswith(".ckpt"):
@@ -1685,7 +1683,7 @@ def initialize(load,load_best,config,sess):
 
 					not_used = [(one,weights[one].shape) for one in weights.keys() if get_op_tensor_name(one)[1] not in intersect]
 					if len(not_used) > 0:
-						print "warning, %s/%s in npz not restored:%s"%(len(weights.keys()) - len(intersect), len(weights.keys()), not_used)
+						print("warning, %s/%s in npz not restored:%s"%(len(weights.keys()) - len(intersect), len(weights.keys()), not_used))
 
 					#if config.show_restore:			
 					#	print "loaded %s vars:%s"%(len(intersect),intersect)
@@ -1695,4 +1693,4 @@ def initialize(load,load_best,config,sess):
 					raise Exception("Not recognized model type:%s"%load_from)
 			else:
 				raise Exception("Model not exists")
-		print "done."
+		print("done.")

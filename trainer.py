@@ -79,7 +79,7 @@ class Trainer():
 			boundaries = [config.warm_up_steps, config.warm_up_steps + config.same_lr_steps] # before reaching warm_up steps, use the warm up learning rate.
 			values = [warm_up_lr, config.init_lr, schedule_lr]
 			learning_rate = tf.train.piecewise_constant(self.global_step, boundaries, values)
-			print "learning rate warm up lr from %s to %s in %s steps, then keep for %s steps, then schedule learning rate decay" % (warm_up_start, config.init_lr, config.warm_up_steps, config.same_lr_steps)
+			print("learning rate warm up lr from %s to %s in %s steps, then keep for %s steps, then schedule learning rate decay" % (warm_up_start, config.init_lr, config.warm_up_steps, config.same_lr_steps))
 
 			self.learning_rate = learning_rate
 		else:
@@ -94,7 +94,7 @@ class Trainer():
 		elif config.optimizer == "momentum":
 			self.opt = tf.train.MomentumOptimizer(learning_rate, momentum=config.momentum)
 		else:
-			print "optimizer not implemented"
+			print("optimizer not implemented")
 			sys.exit()
 
 		self.rpn_label_losses = [model.rpn_label_loss for model in models]

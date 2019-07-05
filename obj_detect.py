@@ -18,7 +18,7 @@ from models import get_model
 from nn import resizeImage
 
 import math, time, json, random, operator
-import cPickle as pickle
+import pickle
 import pycocotools.mask as cocomask
 
 
@@ -246,7 +246,7 @@ def check_args(args):
 		assert args.box_feat_path is not None
 		if not os.path.exists(args.box_feat_path):
 			os.makedirs(args.box_feat_path)
-	#print "cv2 version %s"%(cv2.__version__)
+	#print("cv2 version %s"%(cv2.__version__)
 
 
 if __name__ == "__main__":
@@ -351,7 +351,7 @@ if __name__ == "__main__":
 					sess_input = [model.final_boxes, model.final_labels, model.final_probs]
 
 					final_boxes, final_labels, final_probs = sess.run(sess_input, feed_dict=feed_dict)
-				#print "sess run done"
+				#print("sess run done"
 				# scale back the box to original image size
 				final_boxes = final_boxes / scale
 
@@ -388,7 +388,7 @@ if __name__ == "__main__":
 
 				# for visualization
 				if args.visualize:
-					good_ids = [i for i in xrange(len(final_boxes)) if final_probs[i] >= args.vis_thres]
+					good_ids = [i for i in range(len(final_boxes)) if final_probs[i] >= args.vis_thres]
 					final_boxes,final_labels,final_probs = final_boxes[good_ids],final_labels[good_ids],final_probs[good_ids]
 					vis_boxes = np.asarray([[box[0], box[1], box[2]+box[0], box[3]+box[1]] for box in final_boxes])
 					vis_labels = ["%s_%.2f"%(targetid2class[cat_id],prob) for cat_id,prob in zip(final_labels,final_probs)]

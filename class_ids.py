@@ -327,3 +327,57 @@ targetAct2id_19 = {
 	"specialized_talking_phone": 18,
 	"vehicle_u_turn": 19,
 }
+
+# ---------------- 07/2019, like BUPT
+
+"""
+
+Person-Vehicle
+	"Closing"
+	"Opening"
+	"Exiting"
+	"Entering"
+	"Unloading"
+	"Loading"
+	"Open_Trunk"
+	"Closing_Trunk"
+
+Car-Turning:
+	"vehicle_turning_right"
+	"vehicle_turning_left"
+	"vehicle_u_turn"
+
+person-only:
+	"activity_carrying"
+	"Transport_HeavyCarry"
+	"Talking"
+	"Pull"
+	"Riding"
+	"specialized_texting_phone"
+	"specialized_talking_phone"
+
+"""
+
+targetAct2id_bupt = {
+	"BG":0,
+	"Closing": 1,
+	"Opening": 1,
+	"Exiting": 1,
+	"Entering": 1,
+	"Unloading": 1,
+	"Loading": 1,
+	"Open_Trunk": 1,
+	"Closing_Trunk": 1,
+
+	"vehicle_turning_right": 2,
+	"vehicle_turning_left": 2,
+	"vehicle_u_turn": 2,
+
+	"activity_carrying": 3,
+	"Transport_HeavyCarry": 4,
+	"Talking": 5,
+	"Pull": 6,
+	"Riding": 7,
+	"specialized_texting_phone": 8,
+	"specialized_talking_phone": 9,
+}

@@ -78,7 +78,7 @@ if __name__ == "__main__":
 			scene = get_scene(f)
 			if scene == args.scene:
 				new_files.append(f)
-		print "only eval scene %s, got %s/%s files for eval" % (args.scene, len(new_files), len(files))
+		print("only eval scene %s, got %s/%s files for eval" % (args.scene, len(new_files), len(files)))
 		files = new_files
 
 	# previous classes before annotation refining
@@ -156,17 +156,17 @@ if __name__ == "__main__":
 		for one in anno['labels']:
 			gt_has_none[one] = False
 
-	print "%s/%s out file not exists"%(count_no_out, len(files))
+	print("%s/%s out file not exists"%(count_no_out, len(files)))
 	no_gt_classes = [one for one in gt_has_none if gt_has_none[one]]
-	print "%s class has no ground truth: %s" % (len(no_gt_classes), no_gt_classes)
+	print("%s class has no ground truth: %s" % (len(no_gt_classes), no_gt_classes))
 	aps,ars = aggregate_eval(e, maxDet=100)
 	aps_str = "|".join(["%s:%.5f"%(class_,aps[class_]) for class_ in aps])
 	ars_str = "|".join(["%s:%.5f"%(class_,ars[class_]) for class_ in ars])
 	classes = sorted(aps.keys())
 	headers = ['metric'] + classes
-	print ",".join(headers)
-	print ",".join(["AP"] + ["%.6f"%aps[c] for c in classes])
-	print ",".join(["AR"] + ["%.6f"%ars[c] for c in classes])
+	print(",".join(headers))
+	print(",".join(["AP"] + ["%.6f"%aps[c] for c in classes]))
+	print(",".join(["AR"] + ["%.6f"%ars[c] for c in classes]))
 
 
 

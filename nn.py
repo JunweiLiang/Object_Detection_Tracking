@@ -57,8 +57,8 @@ def wd_cost(regex,wd,scope):
 				costs.append(regloss)
 				names.append(para_name)
 
-		# print the names?
-		print "found %s variables for weight reg"%(len(costs))
+		# print(the names?
+		print("found %s variables for weight reg"%(len(costs)))
 		if len(costs) == 0:
 			return tf.constant(0, dtype=tf.float32, name="empty_"+scope)
 		else:
@@ -757,7 +757,7 @@ def dense(x,output_size,W_init=None,b_init=None,activation=tf.identity,use_bias=
 			# we used to apply W on the last dimention
 			# since the input here is not two rank, we flat the input while keeping the last dims
 			keep = 1
-			#print x.get_shape().as_list()
+			#print(x.get_shape().as_list()
 			flat_x = flatten(x,keep) # keeping the last one dim # [N,M,JX,JQ,d] => [N*M*JX*JQ,d]
 		
 		if W_init is None:
@@ -807,17 +807,17 @@ def pretrained_resnet_conv4(image, num_blocks,tf_pad_reverse=False):
 
 	l = conv2d(l, 64, 7, stride=2, activation=BNReLU, padding='VALID',scope="conv0",use_bias=False,data_format="NCHW")
 
-	#print l.get_shape()# (1,64,?,?)
+	#print(l.get_shape()# (1,64,?,?)
 	l = tf.pad(l, [[0, 0], [0, 0], maybe_reverse_pad(0, 1,tf_pad_reverse), maybe_reverse_pad(0, 1,tf_pad_reverse)])
 	l = MaxPooling(l, shape=3, stride=2, padding='VALID',scope='pool0',data_format="NCHW")
 
-	#print l.get_shape()# (1,64,?,?)
+	#print(l.get_shape()# (1,64,?,?)
 	l = resnet_group(l, 'group0', resnet_bottleneck, 64, num_blocks[0], stride=1,tf_pad_reverse=tf_pad_reverse)
-	#print l.get_shape()# (1,256,?,?)
+	#print(l.get_shape()# (1,256,?,?)
 	# TODO replace var by const to enable folding
 	#l = tf.stop_gradient(l) # froze outside
 	l = resnet_group(l, 'group1', resnet_bottleneck, 128, num_blocks[1], stride=2,tf_pad_reverse=tf_pad_reverse)
-	#print l.get_shape()# (1,512,?,?)
+	#print(l.get_shape()# (1,512,?,?)
 	l = resnet_group(l, 'group2', resnet_bottleneck, 256, num_blocks[2], stride=2,tf_pad_reverse=tf_pad_reverse)
 	return l
 
@@ -1095,7 +1095,7 @@ def get_so_labels(boxes, gt_boxes, gt_labels, config):
 	box_labels = []
 	for i in xrange(len(config.small_objects)):
 		iou = pairwise_iou(boxes[i], gt_boxes[i])
-		#print iou.get_shape()  # [1536,0] # gt_boxes could be empty
+		#print(iou.get_shape()  # [1536,0] # gt_boxes could be empty
 
 		def sample_fg_bg(iou):
 			#fg_ratio = 0.2

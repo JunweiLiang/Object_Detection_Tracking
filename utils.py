@@ -23,7 +23,7 @@ class Summary():
 		self.lines = []
 	def add(self,string,print_it=True):
 		if print_it:
-			print string
+			print(string)
 		self.lines.append(string)
 
 	def writeTo(self,path):
@@ -86,7 +86,7 @@ def get_gpu_info_block(nvi_out):
 	assert (start_idx >= 0) and (end_idx >= 0), nvi_out
 	# each gpu contains two line
 	gpu_info_blocks = []
-	for i in xrange(start_idx, end_idx, 3):
+	for i in range(start_idx, end_idx, 3):
 		# nvi_out[i]:'|   0  GeForce GTX TIT...  Off  | 00000000:01:00.0 Off |                  N/A |'
 		# nvi_out[i+1]: '| 47%   81C    P2    87W / 250W |  10547MiB / 12205MiB |      0%      Default |'
 		gpu_info_blocks.append(nvi_out[i+1])
@@ -101,7 +101,7 @@ def nms_wrapper(final_boxes, final_probs, config):
 	dets = np.concatenate([final_boxes, np.expand_dims(final_probs, axis=-1)], axis=-1)
 	
 	final_boxes, final_probs, final_labels = [],[],[]
-	for c in xrange(dets.shape[0]):  # 0- num_class-1
+	for c in range(dets.shape[0]):  # 0- num_class-1
 		this_dets = dets[c]
 		# hard limit of confident score
 		select_ids = this_dets[:,-1] > config.result_score_thres
@@ -122,7 +122,7 @@ def nms_wrapper(final_boxes, final_probs, config):
 
 		final_boxes.extend(boxes)
 		final_probs.extend(probs)
-		final_labels.extend([classid for i in xrange(len(probs))])
+		final_labels.extend([classid for i in range(len(probs))])
 
 	# they could be empty, for empty scenes when filtered using result_score_thres
 	if(len(final_boxes) == 0):
@@ -182,10 +182,10 @@ class Dataset():
 			grouped = raw_grouped
 
 		# all batches idxs from multiple epochs
-		batch_idxs_iter = itertools.chain.from_iterable(grouped() for _ in xrange(num_epochs))
+		batch_idxs_iter = itertools.chain.from_iterable(grouped() for _ in range(num_epochs))
 		# so how all the epoch is order is fixed here
 
-		for _ in xrange(num_batches):
+		for _ in range(num_batches):
 			# so in the end batch, the None will not included
 			batch_idxs = tuple(i for i in next(batch_idxs_iter) if i is not None) # each batch idxs
 			# so batch_idxs might not be size batch_size, last one at each epoch is not batch_size
@@ -198,8 +198,8 @@ class Dataset():
 
 			# modififiled for multi gpu setting, each image has one Dataset Object
 			batch_datas = [self.get_by_idxs([idx]) for idx in batch_idxs]
-			#print batch_idxs
-			#print batch_datas
+			#print(batch_idxs
+			#print(batch_datas
 			yield batch_idxs, [Dataset(batch_data) for batch_data in batch_datas]
 
 # helper function for eval
@@ -295,7 +295,7 @@ def match_dt_gt(e, imgid, target_dt_boxes, gt_boxes, eval_target):
 		g = gt_boxes[target_class]
 
 		# len(D), len(G)
-		dm,gm = match_detection(d,g,cocomask.iou(d,g,[0 for _ in xrange(len(g))]),iou_thres=0.5)
+		dm,gm = match_detection(d,g,cocomask.iou(d,g,[0 for _ in range(len(g))]),iou_thres=0.5)
 
 		e[target_class][imgid] = {
 			"dscores":dscores,
@@ -313,14 +313,14 @@ def gather_act_singles(actsingleboxes,actsinglelabels,topk):
 	sorted_prob_single = np.argsort(actsinglelabels,axis=-1)[:,::-1]
 	BG_ids = sorted_prob_single[:, 0] == 0 # [K] of bool
 	
-	for j in xrange(len(actsinglelabels)):
+	for j in range(len(actsinglelabels)):
 		if BG_ids[j]:
 			continue
-		labelIds = [sorted_prob_single[j,k] for k in xrange(topk)]
+		labelIds = [sorted_prob_single[j,k] for k in range(topk)]
 		# ignore BG class # or ignore everything after BG class?
 		this_labels = [lid for lid in labelIds if lid != 0] 
 		this_probs = [actsinglelabels[j,lid] for lid in this_labels]
-		this_boxes = [actsingleboxes[j] for _ in xrange(len(this_labels))]
+		this_boxes = [actsingleboxes[j] for _ in range(len(this_labels))]
 
 		single_act_probs.extend(this_probs)
 		single_act_labels.extend(this_labels)
@@ -442,7 +442,7 @@ def evalcoco(res,annofile,add_mask=False):
 def sec2time(secs):
 	#return strftime("%H:%M:%S",time.gmtime(secs)) # doesnt support millisec	"""
 	m,s = divmod(secs,60)
-	#print m,s
+	#print(m,s
 	h,m = divmod(m,60)
 	if(s >= 10.0):
 		return "%02d:%02d:%.3f"%(h,m,s)

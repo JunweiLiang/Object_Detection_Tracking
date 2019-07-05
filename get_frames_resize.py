@@ -4,7 +4,7 @@
 
 import sys,os,argparse
 from tqdm import tqdm
-import cPickle as pickle
+import pickle
 
 def get_args():
 	parser = argparse.ArgumentParser()
@@ -46,7 +46,7 @@ if __name__ == "__main__":
 	if args.cv2path is not None:
 		sys.path = [args.cv2path] + sys.path
 	import cv2
-	print "using opencv version:%s"%(cv2.__version__)
+	print("using opencv version:%s"%(cv2.__version__))
 
 	if not os.path.exists(args.despath):
 		os.makedirs(args.despath)
