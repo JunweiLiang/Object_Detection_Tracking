@@ -276,7 +276,7 @@ Activity Box Experiments:
 <table>
   <tr>
     <td colspan="8">
-      Ours Actbox v1: Trained on v1-train, Dilated CNN, Class-agnostic</td>
+      Our Actbox v1: Trained on v1-train, Dilated CNN, Class-agnostic</td>
   </tr>
   <tr>
     <td>Eval on v1-val</td>
