@@ -101,7 +101,7 @@ def get_args():
 	parser.add_argument("--nn_budget", type=int, default=5,
 						help="Maximum size of the appearance descriptors gallery. If None, no budget is enforced.")
 
-
+	parser.add_argument("--bupt_exp", action="store_true", help="activity box experiemnt")
 	# ---- tempory: for activity detection model
 	parser.add_argument("--actasobj", action="store_true")
 	parser.add_argument("--actmodel_path", default="/app/activity_detection_model")
@@ -112,6 +112,7 @@ def get_args():
 	parser.add_argument("--resnet18", action="store_true", help="")
 	parser.add_argument("--use_se", action="store_true", help="use squeeze and excitation in backbone")
 	parser.add_argument("--use_frcnn_class_agnostic", action="store_true", help="use class agnostic fc head")
+	parser.add_argument("--use_resnext", action="store_true", help="")
 	parser.add_argument("--use_att_frcnn_head", action="store_true",
 						help="use attention to sum [K, 7, 7, C] feature into [K, C]")
 
@@ -145,6 +146,10 @@ def get_args():
 		from class_ids import targetAct2id
 		targetClass2id = targetAct2id
 		targetid2class = {targetAct2id[one]: one for one in targetAct2id}
+	if args.bupt_exp:
+		from class_ids import targetAct2id_bupt
+		targetClass2id =targetAct2id_bupt
+		targetid2class = {targetAct2id_bupt[one]: one for one in targetAct2id_bupt}
 
 	assert len(targetClass2id) == args.num_class, (len(targetClass2id), args.num_class)
 

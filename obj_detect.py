@@ -83,6 +83,7 @@ def get_args():
 	parser.add_argument("--resnet50",action="store_true",help="")
 	parser.add_argument("--resnet34",action="store_true",help="")
 	parser.add_argument("--resnet18",action="store_true",help="")
+	parser.add_argument("--use_resnext", action="store_true", help="")
 	parser.add_argument("--use_se",action="store_true",help="use squeeze and excitation in backbone")
 	parser.add_argument("--use_frcnn_class_agnostic", action="store_true", help="use class agnostic fc head")
 	parser.add_argument("--use_att_frcnn_head", action="store_true",help="use attention to sum [K, 7, 7, C] feature into [K, C]")
