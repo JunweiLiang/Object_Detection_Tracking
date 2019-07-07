@@ -244,6 +244,72 @@ These are the models you can use for inferencing. The original ActEv annotations
   </tr>
 </table>
 
+
+Activity Box Experiments:
+<table>
+  <tr>
+    <td colspan="8">
+      <a href="https://drive.google.com/open?id=1SWvdHJcTDgxgEkX3l0UbhmzU47GYTHYJ">BUPT-MCPRL</a> at the <a href="http://activity-net.org/challenges/2019/program.html">ActivityNet</a> Workshop, CVPR 2019: 3D Faster-RCNN (Numbers taken from their slides)</td>
+  </tr>
+  <tr>
+    <td>Evaluation</td>
+    <td>Person-Vehicle</td>
+    <td>Pull</td>
+    <td>Riding</td>
+    <td>Talking</td>
+    <td>Transport_HeavyCarry</td>
+    <td>Vehicle-Turning</td>
+    <td>activity_carrying</td>
+  </tr>
+  <tr>
+    <td>AP</td>       
+    <td>0.232</td>
+    <td>0.38</td>
+    <td>0.468</td>
+    <td>0.258</td>
+    <td>0.183</td>
+    <td>0.278</td>
+    <td>0.235</td>
+  </tr>
+</table>
+
+<table>
+  <tr>
+    <td colspan="8">
+      Ours Actbox v1: Trained on v1-train, Dilated CNN, Class-agnostic</td>
+  </tr>
+  <tr>
+    <td>Eval on v1-val</td>
+    <td>Person-Vehicle</td>
+    <td>Pull</td>
+    <td>Riding</td>
+    <td>Talking</td>
+    <td>Transport_HeavyCarry</td>
+    <td>Vehicle-Turning</td>
+    <td>activity_carrying</td>
+  </tr>
+  <tr>      
+    <td>AP</td>       
+    <td>0.378</td>
+    <td>0.582</td>
+    <td>0.435</td>
+    <td>0.497</td>
+    <td>0.438</td>
+    <td>0.403</td>
+    <td>0.425</td>
+  </tr>
+  <tr>            
+    <td>AR</td>       
+    <td>0.780</td>
+    <td>0.973</td>
+    <td>0.942</td>
+    <td>0.876</td>
+    <td>0.901</td>
+    <td>0.899</td>
+    <td>0.899</td>
+  </tr>
+</table>
+
 ## Other things I have tried
 These are my experiences with working on this [surveillance dataset](https://actev.nist.gov/):
 1. FPN provides significant improvement over non-FPN backbone;
