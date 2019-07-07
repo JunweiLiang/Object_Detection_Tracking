@@ -4,6 +4,7 @@
 import sys, os, argparse, json, operator
 from tqdm import tqdm
 import numpy as np
+from class_ids import bupt_act_mapping
 
 def get_args():
 	parser = argparse.ArgumentParser()
@@ -18,6 +19,8 @@ def get_args():
 
 	parser.add_argument("--limit", type=int, default=None, help="limit top k per json")
 	parser.add_argument("--conf_thres", type=float, default=None, help="filter out detection thres <")
+
+	parser.add_argument("--bupt_exp", action="store_true", help="bupt act box experiment")
 	return parser.parse_args()
 
 # some decoding of the videoname
@@ -98,6 +101,19 @@ if __name__ == "__main__":
 		"Prop_Overshoulder",
 	]
 
+	if args.bupt_exp:
+		eval_target = [
+			"Person-Vehicle",
+			"Vehicle-Turning",
+			"activity_carrying",
+			"Transport_HeavyCarry",
+			"Talking",
+			"Pull",
+			"Riding",
+			"specialized_texting_phone",
+			"specialized_talking_phone",
+		]
+
 
 	eval_target = {one:1 for one in eval_target}
 
@@ -148,6 +164,11 @@ if __name__ == "__main__":
 
 		target_dt_boxes = gather_dt(boxes,probs,labels,eval_target,not_coco_box=args.not_coco_box)
 
+		if args.bupt_exp:
+			anno['labels'] = anno['actlabels']
+			anno['boxes'] = anno['actboxes']
+
+			anno['labels'] = [bupt_act_mapping[one] if one in bupt_act_mapping else one for one in anno['labels']]
 		gt_boxes = gather_gt(anno['boxes'],anno['labels'],eval_target)
 
 		match_dt_gt(e, filename, target_dt_boxes, gt_boxes, eval_target)

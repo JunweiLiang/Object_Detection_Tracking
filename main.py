@@ -372,6 +372,7 @@ def get_args():
 		targetid2class = {targetAct2id[one]:one for one in targetAct2id}
 
 	if args.bupt_exp:
+		args.diva_class = True
 		args.act_as_obj = True
 		targetClass2id = targetAct2id_bupt
 		targetid2class = {targetAct2id_bupt[one]:one for one in targetAct2id_bupt}

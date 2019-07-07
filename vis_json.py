@@ -11,6 +11,7 @@ parser.add_argument("videonamelst")
 parser.add_argument("framepath")
 parser.add_argument("jsonpath")
 parser.add_argument("despath")
+parser.add_argument("--score_thres", default=0.0, type=float)
 
 PALETTE_HEX = [
 	"#000000", "#FFFF00", "#1CE6FF", "#FF34FF", "#FF4A46", "#008941", "#006FA6", "#A30059",
@@ -212,9 +213,9 @@ if __name__ == "__main__":
 	videonames = [os.path.splitext(os.path.basename(line.strip()))[0] for line in open(args.videonamelst, "r").readlines()]	
 
 	color_queue = copy.deepcopy(COLORS)
-	color_assign = {} # track Id -> 
+	color_assign = {} # track Id -> / "cat_name" ->
 
-	for videoname in tqdm(videonames, ascii=True):
+	for videoname in tqdm(videonames[33:], ascii=True):
 		frames = glob(os.path.join(args.framepath, videoname, "*.jpg"))
 
 		target_path = os.path.join(args.despath, videoname)
@@ -234,19 +235,33 @@ if __name__ == "__main__":
 				with open(jsonfile, "r") as f:
 					data = json.load(f)
 				for one in data:
+					if one['score'] < args.score_thres:
+						continue
 					box = one['bbox'] # [x, y, w, h]
 					box = [box[0], box[1], box[0] + box[2], box[1] + box[3]]
 					boxes.append(box)
-					trackId = int(one['trackId'])
-					
-					labels.append("%.3f:#%s"%(float(one['score']), trackId))
-					if not color_assign.has_key(trackId):
-						this_color = color_queue.pop()
-						color_assign[trackId] = this_color
-						# recycle it 
-						color_queue.insert(0, this_color)
-					color = color_assign[trackId]
-					box_colors.append(color)
+					if one.has_key("trackId"):
+						trackId = int(one['trackId'])
+						
+						labels.append("%s: #%s"%(one['cat_name'], trackId))
+						if not color_assign.has_key(trackId):
+							this_color = color_queue.pop()
+							color_assign[trackId] = this_color
+							# recycle it 
+							color_queue.insert(0, this_color)
+						color = color_assign[trackId]
+						box_colors.append(color)
+					else:
+						# no trackId, just visualize the boxes
+						cat_name = one['cat_name']
+						labels.append("%s: %.3f"%(cat_name, float(one['score'])))
+						if not color_assign.has_key(cat_name):
+							this_color = color_queue.pop()
+							color_assign[cat_name] = this_color
+							# recycle it 
+							color_queue.insert(0, this_color)
+						color = color_assign[cat_name]
+						box_colors.append(color)
 
 			ori_im = cv2.imread(frame, cv2.IMREAD_COLOR)
 
