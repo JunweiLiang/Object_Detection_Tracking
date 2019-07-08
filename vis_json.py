@@ -215,7 +215,7 @@ if __name__ == "__main__":
 	color_queue = copy.deepcopy(COLORS)
 	color_assign = {} # track Id -> / "cat_name" ->
 
-	for videoname in tqdm(videonames[33:], ascii=True):
+	for videoname in tqdm(videonames, ascii=True):
 		frames = glob(os.path.join(args.framepath, videoname, "*.jpg"))
 
 		target_path = os.path.join(args.despath, videoname)
@@ -242,14 +242,14 @@ if __name__ == "__main__":
 					boxes.append(box)
 					if one.has_key("trackId"):
 						trackId = int(one['trackId'])
-						
+						color_key = (trackId, one['cat_name'])
 						labels.append("%s: #%s"%(one['cat_name'], trackId))
-						if not color_assign.has_key(trackId):
+						if not color_assign.has_key(color_key):
 							this_color = color_queue.pop()
-							color_assign[trackId] = this_color
+							color_assign[color_key] = this_color
 							# recycle it 
 							color_queue.insert(0, this_color)
-						color = color_assign[trackId]
+						color = color_assign[color_key]
 						box_colors.append(color)
 					else:
 						# no trackId, just visualize the boxes

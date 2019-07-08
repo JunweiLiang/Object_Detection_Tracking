@@ -4,7 +4,7 @@ import sys, os, json, argparse
 
 from tqdm import tqdm
 
-from class_ids import targetClass2id_new_nopo
+from class_ids import targetClass2id_new_nopo, targetAct2id_bupt
 
 targetClass2id = targetClass2id_new_nopo
 
@@ -13,6 +13,7 @@ parser.add_argument("filepath", help="all  txt files for each video")
 parser.add_argument("videonamelst")
 parser.add_argument("cat_name")
 parser.add_argument("despath", help="despath/videoname_F_08d.json, index from 0")
+parser.add_argument("--bupt_exp", action="store_true")
 
 
 if __name__ == "__main__":
@@ -22,6 +23,9 @@ if __name__ == "__main__":
 
 	if not os.path.exists(args.despath):
 		os.makedirs(args.despath)
+
+	if args.bupt_exp:
+		targetClass2id = targetAct2id_bupt
 
 	for videoname in tqdm(videonames, ascii=True):
 		detfile = os.path.join(args.filepath, "%s.txt"%videoname)
