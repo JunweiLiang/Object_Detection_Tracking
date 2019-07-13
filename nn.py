@@ -460,13 +460,18 @@ def resnet_bottleneck(l, ch_out, stride, dilations=1, deformable=False, tf_pad_r
 def resnext_32x4d_bottleneck(l, ch_out, stride, dilations=1, deformable=False, tf_pad_reverse=False, use_gn=False, use_se=False):
 	shortcut = l
 
-	l = conv2d(l, ch_out * 2, 1, stride=1, activation=BNReLU, scope='conv1', use_bias=False, data_format="NCHW")
-	
-	l = conv2d(l, ch_out * 2, 3, dilations=dilations, stride=stride, activation=BNReLU, scope='conv2', split=32, use_bias=False,data_format="NCHW")
+	if use_gn:
+		NormReLU = GNReLU
+	else:
+		NormReLU = BNReLU
 
-	l = conv2d(l, ch_out * 4, 1, activation=get_bn(False, zero_init=True), scope='conv3', use_bias=False,data_format="NCHW")
+	l = conv2d(l, ch_out * 2, 1, stride=1, activation=NormReLU, scope='conv1', use_bias=False, data_format="NCHW")
 	
-	out = l + resnet_shortcut(shortcut, ch_out * 4, stride, activation=get_bn(False, zero_init=False), data_format="NCHW")
+	l = conv2d(l, ch_out * 2, 3, dilations=dilations, stride=stride, activation=NormReLU, scope='conv2', split=32, use_bias=False,data_format="NCHW")
+
+	l = conv2d(l, ch_out * 4, 1, activation=get_bn(use_gn, zero_init=True), scope='conv3', use_bias=False,data_format="NCHW")
+	
+	out = l + resnet_shortcut(shortcut, ch_out * 4, stride, activation=get_bn(use_gn, zero_init=False), data_format="NCHW")
 	return out
 
 def resnet_shortcut(l, n_out, stride, activation=tf.identity,data_format="NCHW",use_gn=False):
