@@ -84,27 +84,36 @@ obj_v3_val_output --num_class 15 --diva_class3 --max_size 1920 --short_edge_size
 ```
 Assuming `v1-validate_frames.lst` contains absolute path of all images. This will output one json in COCO detection format for each image in `obj_v3_val_output/`. The `--log` will run `nvidia-smi` every couple second in a separate thread to record the gpu utilizations.
 
-## Experiment 2: TensorRT Optimization (Not Working Yet)
+## Experiment 2: TensorRT Optimization (TF v1.14.0)
 
-Given the frozen .pb file, I use the following to get TensorRT optimized graph (I install dependencies according to [this](https://www.tensorflow.org/install/gpu#ubuntu_1604_cuda_10)):
+Use TensorRT to optimize frozen graph (I tried FP32, FP16):
 ```
-$ python tensorrt_optimize.py obj_v3.pb obj_v3_tensorrt.pb
-```
-
-But when I run testing with:
-```
-$ python main.py nothing v1-validate_frames.lst --mode forward --outbasepath \
-obj_v3_val_output --num_class 15 --diva_class3 --max_size 1920 --short_edge_size \
-1080 --gpu 2 --im_batch_size 2 --load_from obj_v3_tensorrt.pb  --is_load_from_pb --log
-```
-I got the following error:
-`InternalError (see above for traceback): Native FunctionDef TRTEngineOp_34_native_segment can't be found in function library`
-
-Changed `is_dynamic_op=False` and then I got this error:
-```
-InternalError (see above for traceback): Native FunctionDef fpn/upsample_lat5/Tensordot/TRTEngineOp_39_native_segment can't be found in function library
-         [[node model_0/fpn/upsample_lat5/Tensordot/TRTEngineOp_39 (defined at /home/junweil/object_detection/script/tf_mrcnn/models.py:147) ]]
-         [[{{node model_0/fastrcnn_predictions/map/while/body/_1/GatherV2_1}}]]
+$ python tensorrt_optimize.py obj_v5_tfv1.14.0.pb obj_v5_tfv1.14.0.tensorRT.fp32.pb --precision_mode FP32
 ```
 
-These errors are likely caused by my use of [unsupported OPs](https://github.com/tensorflow/tensorrt/issues/80) in TensorRT.
+Inferencing (run 4 program in parallel):
+```
+$ python main.py nothing v1-validate_frames.1.lst --mode forward --outbasepath \
+obj_v5_val_output_TRT_FP32 --num_class 15 --diva_class3 --max_size 1920 --short_edge_size \
+1080 --gpu 1 --im_batch_size 1 --gpuid_start 0 --load_from obj_v5_tfv1.14.0.tensorRT.fp32.pb  --is_load_from_pb --log
+```
+
+I haven't explored `--maximum_cached_engines` and `INT8` mode yet. And ideally these experiments should be repeated a couple of times.
+
+Experiments:
+
+| RunType | Model: obj_v5                                                           |
+|---------|-------------------------------------------------------------------------|
+| 1       | tf 1.14.0 (CUDA 10.0 cudnn 7.4), Frozen Graph (.pb)                     |
+| 2       | tf 1.14.0 (CUDA 10.0 cudnn 7.4), Frozen Graph (.pb) -> TRT FP32         |
+| 3       | tf 1.14.0 (CUDA 10.0 cudnn 7.4), Frozen Graph (.pb) -> TRT FP16         |
+
+Machine 2
+
+| RunType | # Image | Image Size | # GPU Used | runtime (s) | GPU Average Utilization | Per GPU FPS |
+|---------|---------|------------|------------|-------------|-------------------------|-------------|
+| 1       | 206268  | 1920x1080  | 4 / 1*     | 13195.3     | 62.97%                  | 3.91        |
+| 2       | 206268  | 1920x1080  | 4 / 1*     | 13125.5     | 61.02%                  | 3.93        |
+| 3       | 206268  | 1920x1080  | 4 / 1*     | 13261.9     | 52.63%                  | 3.89        |
+
+

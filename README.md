@@ -319,6 +319,8 @@ These are my experiences with working on this [surveillance dataset](https://act
 5. SoftNMS shows mixed results and add 5% more computation time to system (since I used the CPU version). So I don't use it.
 6. Tried [Mix-up](https://arxiv.org/abs/1710.09412) by randomly mixing ground truth bounding boxes from different frames. Doesn't improve performance.
 7. Focal loss doesn't help.
+8. [Relation Network](https://arxiv.org/abs/1711.11575) does not improve and the model is huge.
+9. ResNeXt does not see significant improvement on this dataset.
 
 ## Training & Testing
 Instruction to train a new model is [here](TRAINING.md).
@@ -327,7 +329,8 @@ Instruction to train a new model is [here](TRAINING.md).
 **TL;DR**:
 - TF v1.10 -> v1.13 (CUDA 9 & cuDNN v7.1 -> CUDA 10 & cuDNN v7.4) ~ +9% faster
 - Use frozen graph  ~ +30% faster
-- Use TensorRT optimized graph ~ +?% faster
+- Use TensorRT (FP32/FP16) optimized graph ~ +0% faster
+- Use TensorRT (INT8) optimized graph ?
 
 Experiments are recorded [here](SPEED.md).
 
