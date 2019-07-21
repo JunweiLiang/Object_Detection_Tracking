@@ -320,7 +320,7 @@ These are my experiences with working on this [surveillance dataset](https://act
 6. SoftNMS shows mixed results and add 5% more computation time to system (since I used the CPU version). So I don't use it.
 7. Tried [Mix-up](https://arxiv.org/abs/1710.09412) by randomly mixing ground truth bounding boxes from different frames. Doesn't improve performance.
 8. Focal loss doesn't help.
-9. [Relation Network](https://arxiv.org/abs/1711.11575) does not improve and the model is huge (my implementation).
+9. [Relation Network](https://arxiv.org/abs/1711.11575) does not improve and the model is huge ([my implementation](nn.py#L100)).
 10. ResNeXt does not see significant improvement on this dataset.
 
 ## Training & Testing
