@@ -1,6 +1,6 @@
 # CMU Object Detection & Tracking for Surveillance Video Activity Detection
 
-This repository contains the code and models for object detection and tracking from the CMU [DIVA](https://www.iarpa.gov/index.php/research-programs/diva) system. Our system (INF & MUDSML) achieves the **best performance** on the ActEv [leaderboard](https://actev.nist.gov/prizechallenge#tab_leaderboard) ([Cached](https://www.cs.cmu.edu/~junweil/resources/actev-prizechallenge-06-2019.png)). 
+This repository contains the code and models for object detection and tracking from the CMU [DIVA](https://www.iarpa.gov/index.php/research-programs/diva) system. Our system (INF & MUDSML) achieves the **best performance** on the ActEv [leaderboard](https://actev.nist.gov/prizechallenge#tab_leaderboard) ([Cached](https://www.cs.cmu.edu/~junweil/resources/actev-prizechallenge-06-2019.png)).
 
 If you find this code useful in your research then please cite
 
@@ -17,7 +17,7 @@ If you find this code useful in your research then please cite
 
 
 ## Introduction
-We utilize state-of-the-art object deteciton and tracking algorithm in surveillance videos. Our best object detection model basically uses Faster RCNN with a backbone of Resnet-101 with dilated CNN and FPN. The tracking algo (Deep SORT) uses ROI features from the object detection model.
+We utilize state-of-the-art object deteciton and tracking algorithm in surveillance videos. Our best object detection model basically uses Faster RCNN with a backbone of Resnet-101 with dilated CNN and FPN. The tracking algo (Deep SORT) uses ROI features from the object detection model. The ActEV trained models are good for small object detection in outdoor scenes. For indoor cameras, COCO trained models are better.
 
 
 <div align="center">
@@ -76,6 +76,14 @@ $ python ../../vis_json.py Person.lst ../../v1-val_testvideos_frames/ Person_jso
 $ python ../../vis_json.py Vehicle.lst ../../v1-val_testvideos_frames/ Vehicle_json/ Vehicle_vis
 $ ffmpeg -framerate 30 -i Vehicle_vis/VIRAT_S_000205_05_001092_001124/VIRAT_S_000205_05_001092_001124_F_%08d.jpg Vehicle_vis_video.mp4
 $ ffmpeg -framerate 30 -i Person_vis/VIRAT_S_000205_05_001092_001124/VIRAT_S_000205_05_001092_001124_F_%08d.jpg Person_vis_video.mp4
+
+# or you could put "Person/Vehicle" visualization into the same video
+$ ls $PWD/v1-val_testvideos/* > v1-val_testvideos.abs.lst
+$ python get_frames_resize.py v1-val_testvideos.abs.lst v1-val_testvideos_frames/ --use_2level
+$ python tracks_to_json.py test_track_out/ v1-val_testvideos.abs.lst test_track_out_json
+$ python vis_json.py v1-val_testvideos.abs.lst v1-val_testvideos_frames/ test_track_out_json/ test_track_out_vis
+# then use ffmpeg to make videos
+
 ```
 Now you have the tracking visualization videos for both "Person" and "Vehicle" class.
 
@@ -245,6 +253,38 @@ These are the models you can use for inferencing. The original ActEv annotations
 </table>
 
 
+<table>
+  <tr>
+    <td colspan="6">
+      <a href="https://aladdin-eax.inf.cs.cmu.edu/shares/diva_obj_detect_models/models/obj_coco_tfv1.14.pb">Object COCO</a>
+    : COCO trained Resnet-101 FPN model. Better for indoor scenes.</td>
+  </tr>
+  <tr>
+    <td>Eval on v1-val</td>
+    <td>Person</td>
+    <td>Bike</td>
+    <td>Push_Pulled_Object</td>
+    <td>Vehicle</td>
+    <td>Mean</td>
+  </tr>
+  <tr>
+    <td>AP</td>
+    <td>0.378</td>
+    <td>0.398</td>
+    <td>N/A</td>
+    <td>0.947</td>
+    <td>N/A</td>
+  </tr>
+  <tr>
+    <td>AR</td>
+    <td>0.585</td>
+    <td>0.572</td>
+    <td>N/A</td>
+    <td>0.965</td>
+    <td>N/A</td>
+  </tr>
+</table>
+
 Activity Box Experiments:
 <table>
   <tr>
@@ -262,7 +302,7 @@ Activity Box Experiments:
     <td>activity_carrying</td>
   </tr>
   <tr>
-    <td>AP</td>       
+    <td>AP</td>
     <td>0.232</td>
     <td>0.38</td>
     <td>0.468</td>
@@ -288,8 +328,8 @@ Activity Box Experiments:
     <td>Vehicle-Turning</td>
     <td>activity_carrying</td>
   </tr>
-  <tr>      
-    <td>AP</td>       
+  <tr>
+    <td>AP</td>
     <td>0.378</td>
     <td>0.582</td>
     <td>0.435</td>
@@ -298,8 +338,8 @@ Activity Box Experiments:
     <td>0.403</td>
     <td>0.425</td>
   </tr>
-  <tr>            
-    <td>AR</td>       
+  <tr>
+    <td>AR</td>
     <td>0.780</td>
     <td>0.973</td>
     <td>0.942</td>
