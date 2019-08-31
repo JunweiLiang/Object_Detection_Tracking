@@ -168,7 +168,7 @@ class Mask_RCNN_FPN_frozen():
     self.final_labels = self.graph.get_tensor_by_name("%s/final_labels:0"%self.var_prefix)
     self.final_probs = self.graph.get_tensor_by_name("%s/final_probs:0"%self.var_prefix)
 
-    if self.add_mask:
+    if add_mask:
       self.final_masks = self.graph.get_tensor_by_name("%s/final_masks:0"%self.var_prefix)
 
     self.fpn_box_feat = self.graph.get_tensor_by_name("%s/fpn_box_feat:0"%self.var_prefix)
