@@ -44,7 +44,7 @@ def get_args():
   parser.add_argument("--video_dir", default=None)
   parser.add_argument("--video_lst_file", default=None, help="video_file_path = os.path.join(video_dir, $line)")
 
-  parser.add_argument("--out_dir", default=None, help="out_dir/$basename/%%d.json, start from 0 index")
+  parser.add_argument("--out_dir", default=None, help="out_dir/$basename/%%d.json, start from 0 index. This is the object box output. Leave this blank when use tracking to avoid saving the obj class output to save IO time.")
 
   parser.add_argument("--frame_gap", default=8, type=int)
 
