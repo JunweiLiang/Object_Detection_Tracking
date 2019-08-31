@@ -272,7 +272,7 @@ def initialize(config, sess):
   allvars = tf.global_variables()
   allvars = [var for var in allvars if "global_step" not in var.name]
   restore_vars = allvars
-  opts = ["Adam", "beta1_power", "beta2_power", "Adam_1", "Adadelta_1", "Adadelta", "Momentum"]
+  opts = ["Adam","beta1_power","beta2_power","Adam_1","Adadelta_1","Adadelta","Momentum"]
   restore_vars = [var for var in restore_vars if var.name.split(":")[0].split("/")[-1] not in opts]
 
   saver = tf.train.Saver(restore_vars, max_to_keep=5)
@@ -283,7 +283,41 @@ def initialize(config, sess):
     loadpath = ckpt.model_checkpoint_path
     saver.restore(sess, loadpath)
   else:
-    raise Exception("Model not exists")
+    if os.path.exists(load_from):
+      if load_from.endswith(".ckpt"):
+        # load_from should be a single .ckpt file
+        saver.restore(sess, load_from)
+      elif load_from.endswith(".npz"):
+        # load from dict
+        weights = np.load(load_from)
+        params = {get_op_tensor_name(n)[1]:v
+                  for n, v in dict(weights).iteritems()}
+        param_names = set(params.iterkeys())
+
+        variables = restore_vars
+
+        variable_names = set([k.name for k in variables])
+
+        intersect = variable_names & param_names
+
+        restore_vars = [v for v in variables if v.name in intersect]
+
+        with sess.as_default():
+          for v in restore_vars:
+            vname = v.name
+            v.load(params[vname])
+
+        not_used = [(one, weights[one].shape)
+                    for one in weights.keys()
+                    if get_op_tensor_name(one)[1] not in intersect]
+        if not not_used:
+          print("warning, %s/%s in npz not restored:%s" %(len(weights.keys()) - len(intersect), len(weights.keys()), not_used))
+
+      else:
+        raise Exception("Not recognized model type:%s" % load_from)
+    else:
+      raise Exception("Model not exists")
+
 
 
 # check argument
@@ -305,8 +339,9 @@ if __name__ == "__main__":
 
   videolst = [os.path.join(args.video_dir, one.strip()) for one in open(args.video_lst_file).readlines()]
 
-  if not os.path.exists(args.out_dir):
-    os.makedirs(args.out_dir)
+  if args.out_dir is not None:
+    if not os.path.exists(args.out_dir):
+      os.makedirs(args.out_dir)
 
   if args.visualize:
     from viz import draw_boxes
@@ -353,9 +388,10 @@ if __name__ == "__main__":
 
       # videoname = os.path.splitext(os.path.basename(videofile))[0]
       videoname = os.path.basename(videofile)
-      video_out_path = os.path.join(args.out_dir, videoname)
-      if not os.path.exists(video_out_path):
-        os.makedirs(video_out_path)
+      if args.out_dir is not None:  # not saving box json to save time
+        video_out_path = os.path.join(args.out_dir, videoname)
+        if not os.path.exists(video_out_path):
+          os.makedirs(video_out_path)
 
       # for box feature
       if args.get_box_feat:
@@ -468,6 +504,10 @@ if __name__ == "__main__":
             sess_input = [model.final_boxes, model.final_labels, model.final_probs]
             final_boxes, final_labels, final_probs = sess.run(sess_input, feed_dict=feed_dict)
 
+        if args.out_dir is None:
+          cur_frame += 1
+          continue
+
         # scale back the box to original image size
         final_boxes = final_boxes / scale
 
@@ -508,6 +548,7 @@ if __name__ == "__main__":
                       "%s_F_%08d.json" % (os.path.splitext(videoname)[0], cur_frame))
         else:
           predfile = os.path.join(video_out_path, "%d.json" % (cur_frame))
+
         with open(predfile, "w") as f:
           json.dump(pred, f)
 

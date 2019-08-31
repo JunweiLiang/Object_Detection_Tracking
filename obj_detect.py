@@ -231,7 +231,7 @@ def get_args():
 
   return args
 
-def initialize(config,sess):
+def initialize(config, sess):
   tf.global_variables_initializer().run()
   allvars = tf.global_variables()
   allvars = [var for var in allvars if "global_step" not in var.name]
@@ -247,7 +247,40 @@ def initialize(config,sess):
     loadpath = ckpt.model_checkpoint_path
     saver.restore(sess, loadpath)
   else:
-    raise Exception("Model not exists")
+    if os.path.exists(load_from):
+      if load_from.endswith(".ckpt"):
+        # load_from should be a single .ckpt file
+        saver.restore(sess, load_from)
+      elif load_from.endswith(".npz"):
+        # load from dict
+        weights = np.load(load_from)
+        params = {get_op_tensor_name(n)[1]:v
+                  for n, v in dict(weights).iteritems()}
+        param_names = set(params.iterkeys())
+
+        variables = restore_vars
+
+        variable_names = set([k.name for k in variables])
+
+        intersect = variable_names & param_names
+
+        restore_vars = [v for v in variables if v.name in intersect]
+
+        with sess.as_default():
+          for v in restore_vars:
+            vname = v.name
+            v.load(params[vname])
+
+        not_used = [(one, weights[one].shape)
+                    for one in weights.keys()
+                    if get_op_tensor_name(one)[1] not in intersect]
+        if not not_used:
+          print("warning, %s/%s in npz not restored:%s" %(len(weights.keys()) - len(intersect), len(weights.keys()), not_used))
+
+      else:
+        raise Exception("Not recognized model type:%s" % load_from)
+    else:
+      raise Exception("Model not exists")
 
 # check argument
 def check_args(args):
