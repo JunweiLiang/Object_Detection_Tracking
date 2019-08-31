@@ -124,7 +124,7 @@ def pack(config):
     output_graph_def = tf.graph_util.convert_variables_to_constants(
       sess, # The session is used to retrieve the weights
       input_graph_def, # The graph_def is used to retrieve the nodes
-
+      vars_,
     )
     output_graph = config.pack_model_path
     # Finally we serialize and dump the output graph to the filesystem
