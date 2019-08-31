@@ -15,7 +15,7 @@ import cv2
 
 from tqdm import tqdm
 from models import get_model
-from nn import resizeImage
+from nn import resizeImage, fill_full_mask
 
 import math, time, json, random, operator
 import pickle
@@ -91,6 +91,8 @@ def get_args():
   parser.add_argument("--use_frcnn_class_agnostic", action="store_true", help="use class agnostic fc head")
   parser.add_argument("--use_att_frcnn_head", action="store_true",help="use attention to sum [K, 7, 7, C] feature into [K, C]")
 
+  # ---- COCO model
+  parser.add_argument("--add_mask", action="store_true")
 
   # --------------- exp junk
   parser.add_argument("--use_dilations", action="store_true", help="use dilations=2 in res5")
@@ -163,7 +165,7 @@ def get_args():
   args.freeze = 2
   args.small_objects = ["Prop", "Push_Pulled_Object", "Prop_plus_Push_Pulled_Object", "Bike"]
   args.no_obj_detect = False
-  args.add_mask = False
+  #args.add_mask = False
   args.is_fpn = True
   #args.new_tensorpack_model = True
   args.mrcnn_head_dim = 256
@@ -358,12 +360,18 @@ if __name__ == "__main__":
           featfile = os.path.join(feat_out_path, "%d.npy"%(cur_frame))
           np.save(featfile, box_feats)
         else:
-          sess_input = [model.final_boxes, model.final_labels, model.final_probs]
-
-          final_boxes, final_labels, final_probs = sess.run(sess_input, feed_dict=feed_dict)
+          if args.add_mask:
+            sess_input = [model.final_boxes, model.final_labels, model.final_probs, model.final_masks]
+            final_boxes, final_labels, final_probs, final_masks = sess.run(sess_input, feed_dict=feed_dict)
+          else:
+            sess_input = [model.final_boxes, model.final_labels, model.final_probs]
+            final_boxes, final_labels, final_probs = sess.run(sess_input, feed_dict=feed_dict)
         #print("sess run done"
         # scale back the box to original image size
         final_boxes = final_boxes / scale
+
+        if args.add_mask:
+          final_masks = [fill_full_mask(box, mask, im.shape[:2]) for box, mask in zip(final_boxes, final_masks)]
 
         # save as json
         pred = []
@@ -377,6 +385,10 @@ if __name__ == "__main__":
 
           # encode mask
           rle = None
+          if args.add_mask:
+            final_mask = final_masks[j] # [14, 14]
+            rle = cocomask.encode(np.array(final_mask[:, :, None], order="F"))[0]
+            rle['counts'] = rle['counts'].decode("ascii")
 
           res = {
             "category_id":cat_id,

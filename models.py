@@ -57,7 +57,8 @@ def get_model(config, gpuid=0, task=0, controller="/cpu:0"):
   with tf.device(assign_to_device("/gpu:%s"%(gpuid), controller)):
     # load from frozen model
     if config.is_load_from_pb:
-      model = Mask_RCNN_FPN_frozen(config.load_from, gpuid)
+      model = Mask_RCNN_FPN_frozen(config.load_from, gpuid,
+                                   add_mask=config.add_mask)
     else:
       with tf.variable_scope(tf.get_variable_scope(), reuse=tf.AUTO_REUSE):
         #tf.get_variable_scope().reuse_variables()
@@ -107,16 +108,23 @@ def pack(config):
     input_graph_def = tf.get_default_graph().as_graph_def()
     #print [n.name for n in input_graph_def.node]
     # We use a built-in TF helper to export variables to constants
-    output_graph_def = tf.graph_util.convert_variables_to_constants(
-      sess, # The session is used to retrieve the weights
-      input_graph_def, # The graph_def is used to retrieve the nodes
-      # output node names
-      [
+    # output node names
+    vars_ = [
         "final_boxes",
         "final_labels",
         "final_probs",
-        "fpn_box_feat",
-      ]
+        "fpn_box_feat"]
+    if config.add_mask:
+      vars_ = [
+          "final_boxes",
+          "final_labels",
+          "final_probs",
+          "final_masks",
+          "fpn_box_feat"]
+    output_graph_def = tf.graph_util.convert_variables_to_constants(
+      sess, # The session is used to retrieve the weights
+      input_graph_def, # The graph_def is used to retrieve the nodes
+
     )
     output_graph = config.pack_model_path
     # Finally we serialize and dump the output graph to the filesystem
@@ -129,7 +137,7 @@ def pack(config):
 # load the weights at init time
 # this class has the same interface as Mask_RCNN_FPN
 class Mask_RCNN_FPN_frozen():
-  def __init__(self, modelpath, gpuid):
+  def __init__(self, modelpath, gpuid, add_mask=False):
     self.graph = tf.get_default_graph()
 
     # save path is one.pb file
@@ -141,9 +149,9 @@ class Mask_RCNN_FPN_frozen():
     #print [n.name for n in graph_def.node]
     self.var_prefix = "model_%s" % gpuid # need this to load different stuff for different gpu
     tf.import_graph_def(
-      graph_def,
-      name=self.var_prefix,
-      return_elements=None
+        graph_def,
+        name=self.var_prefix,
+        return_elements=None
     )
 
     #print 'Check out the input placeholders:'
@@ -159,6 +167,9 @@ class Mask_RCNN_FPN_frozen():
     self.final_boxes = self.graph.get_tensor_by_name("%s/final_boxes:0"%self.var_prefix)
     self.final_labels = self.graph.get_tensor_by_name("%s/final_labels:0"%self.var_prefix)
     self.final_probs = self.graph.get_tensor_by_name("%s/final_probs:0"%self.var_prefix)
+
+    if self.add_mask:
+      self.final_masks = self.graph.get_tensor_by_name("%s/final_masks:0"%self.var_prefix)
 
     self.fpn_box_feat = self.graph.get_tensor_by_name("%s/fpn_box_feat:0"%self.var_prefix)
 

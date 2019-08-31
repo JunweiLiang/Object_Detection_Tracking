@@ -15,6 +15,7 @@ import tensorflow as tf
 import cv2
 
 from models import get_model, resizeImage
+from nn import fill_full_mask
 
 import math, time, json, random, operator
 import pickle
@@ -25,6 +26,9 @@ from deep_sort.tracker import Tracker
 from application_util import preprocessing
 from deep_sort.utils import create_obj_infos,linear_inter_bbox,filter_short_objs
 from utils import Dataset, Summary, get_op_tensor_name
+
+# for mask
+import pycocotools.mask as cocomask
 
 from class_ids import targetClass2id_new_nopo
 
@@ -118,6 +122,9 @@ def get_args():
   parser.add_argument("--use_att_frcnn_head", action="store_true",
             help="use attention to sum [K, 7, 7, C] feature into [K, C]")
 
+  # ---- COCO model
+  parser.add_argument("--add_mask", action="store_true")
+
   # --------------- exp junk
   parser.add_argument("--use_dilations", action="store_true", help="use dilations=2 in res5")
   parser.add_argument("--use_deformable", action="store_true", help="use deformable conv")
@@ -196,7 +203,7 @@ def get_args():
   args.freeze = 2
   args.small_objects = ["Prop", "Push_Pulled_Object", "Prop_plus_Push_Pulled_Object", "Bike"]
   args.no_obj_detect = False
-  args.add_mask = False
+  #args.add_mask = False
   args.is_fpn = True
   # args.new_tensorpack_model = True
   args.mrcnn_head_dim = 256
@@ -405,8 +412,14 @@ if __name__ == "__main__":
           featfile = os.path.join(feat_out_path, "%d.npy" % (cur_frame))
           np.save(featfile, box_feats)
         elif args.get_tracking:
-          sess_input = [model.final_boxes, model.final_labels, model.final_probs, model.fpn_box_feat]
-          final_boxes, final_labels, final_probs, box_feats = sess.run(sess_input, feed_dict=feed_dict)
+
+          if args.add_mask:
+            sess_input = [model.final_boxes, model.final_labels, model.final_probs, model.fpn_box_feat, model.final_masks]
+            final_boxes, final_labels, final_probs, box_feats, final_masks = sess.run(sess_input, feed_dict=feed_dict)
+          else:
+            sess_input = [model.final_boxes, model.final_labels, model.final_probs, model.fpn_box_feat]
+            final_boxes, final_labels, final_probs, box_feats = sess.run(sess_input, feed_dict=feed_dict)
+
           assert len(box_feats) == len(final_boxes)
 
           for tracking_obj in tracking_objs:
@@ -448,12 +461,18 @@ if __name__ == "__main__":
                 cur_frame, track.track_id, bbox[0], bbox[1], bbox[2], bbox[3]])
 
         else:
-          sess_input = [model.final_boxes, model.final_labels, model.final_probs]
+          if args.add_mask:
+            sess_input = [model.final_boxes, model.final_labels, model.final_probs, model.final_masks]
+            final_boxes, final_labels, final_probs, final_masks = sess.run(sess_input, feed_dict=feed_dict)
+          else:
+            sess_input = [model.final_boxes, model.final_labels, model.final_probs]
+            final_boxes, final_labels, final_probs = sess.run(sess_input, feed_dict=feed_dict)
 
-          final_boxes, final_labels, final_probs = sess.run(sess_input, feed_dict=feed_dict)
-        # print("sess run done"
         # scale back the box to original image size
         final_boxes = final_boxes / scale
+
+        if args.add_mask:
+          final_masks = [fill_full_mask(box, mask, im.shape[:2]) for box, mask in zip(final_boxes, final_masks)]
 
         # save as json
         pred = []
@@ -462,11 +481,16 @@ if __name__ == "__main__":
           box[2] -= box[0]
           box[3] -= box[1]  # produce x,y,w,h output
 
+
           cat_id = label
           cat_name = targetid2class[cat_id]
 
           # encode mask
           rle = None
+          if args.add_mask:
+            final_mask = final_masks[j] # [14, 14]
+            rle = cocomask.encode(np.array(final_mask[:, :, None], order="F"))[0]
+            rle['counts'] = rle['counts'].decode("ascii")
 
           res = {
             "category_id": cat_id,
