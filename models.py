@@ -662,10 +662,34 @@ class Mask_RCNN_FPN():
       # get the regressed actual boxes
       if config.use_frcnn_class_agnostic:
         # box regress logits [K, 1, 4], so we tile it to num_class-1 so the rest is the same
-        fastrcnn_box_logits = tf.tile(fastrcnn_box_logits, [1, config.num_class-1, 1])
+        fastrcnn_box_logits = tf.tile(fastrcnn_box_logits, [1, config.num_class - 1, 1])
+
+      num_class = config.num_class
+
+      # COCO has 81 classes, we only need a few
+      if config.use_partial_classes:
+        needed_object_classids = [config.classname2id[name] for name in config.partial_classes]
+        needed_object_classids_minus_1 = [o - 1 for o in needed_object_classids]
+        # (N, num_class), (N, num_class - 1, 4)
+        # -> (num_class, N), (num_class - 1, N, 4)
+        label_logits_t = tf.transpose(fastrcnn_label_logits, [1, 0])
+        box_logits_t = tf.transpose(fastrcnn_box_logits, [1, 0, 2])
+
+        # [C + 1, N]  # 1 is the BG class
+        partial_label_logits_t = tf.gather(label_logits_t, [0] + needed_object_classids)
+        # [C, N, 4]
+        partial_box_logits_t = tf.gather(box_logits_t, needed_object_classids_minus_1)
+
+        partial_label_logits = tf.transpose(partial_label_logits_t, [1, 0])
+        partial_box_logits = tf.transpose(partial_box_logits_t, [1, 0, 2])
+
+        fastrcnn_label_logits = partial_label_logits
+        fastrcnn_box_logits = partial_box_logits
+
+        num_class = len(needed_object_classids) + 1
 
       # anchor box [K,4] -> [K, num_class - 1, 4] <- box regress logits [K, num_class-1, 4]
-      anchors = tf.tile(tf.expand_dims(rcnn_boxes, 1), [1, config.num_class-1, 1])
+      anchors = tf.tile(tf.expand_dims(rcnn_boxes, 1), [1, num_class-1, 1])
 
       # [K, num_class-1, 4]/ [K, 1, 4]
       decoded_boxes = decode_bbox_target(fastrcnn_box_logits / tf.constant(config.fastrcnn_bbox_reg_weights, dtype=tf.float32), anchors)
@@ -724,10 +748,10 @@ class Mask_RCNN_FPN():
         boxes = decoded_boxes
         probs = label_probs
         assert boxes.shape[1] == config.num_class - 1,(boxes.shape,config.num_class)
-        assert probs.shape[1] == config.num_class,(probs.shape[1],config.num_class)
+        assert probs.shape[1] == config.num_class, (probs.shape[1],config.num_class)
         # transpose to map_fn along each class
-        boxes = tf.transpose(boxes,[1,0,2]) # [num_class-1, K,4]
-        probs = tf.transpose(probs[:,1:],[1,0]) # [num_class-1, K]
+        boxes = tf.transpose(boxes, [1, 0, 2]) # [num_class-1, K,4]
+        probs = tf.transpose(probs[:, 1:], [1, 0]) # [num_class-1, K]
 
         #self.all_boxes_and_scores = tf.concat([boxes, tf.expand_dims(probs,axis=-1)],axis=-1) # [num_class-1, K, 5]
         self.final_boxes = boxes
@@ -746,23 +770,32 @@ class Mask_RCNN_FPN():
 
       # [R,4]
       final_boxes = tf.gather_nd(decoded_boxes, pred_indices, name="final_boxes")
-      # [R] , each is 1-80 catogory
-      final_labels = tf.add(pred_indices[:,1], 1, name="final_labels")
+      # [R] , each is 1-catogory
+      final_labels = tf.add(pred_indices[:, 1], 1, name="final_labels")
 
       if config.add_mask:
 
         roi_feature_maskrcnn = self.multilevel_roi_align(p23456[:4], final_boxes, 14)
 
-        mask_logits = self.maskrcnn_up4conv_head(roi_feature_maskrcnn, config.num_class,scope='maskrcnn')
+        # [R, num_class - 1, 14, 14]
+        mask_logits = self.maskrcnn_up4conv_head(roi_feature_maskrcnn, config.num_class, scope='maskrcnn')
 
-        indices = tf.stack([tf.range(tf.size(final_labels)),tf.to_int32(final_labels)-1],axis=1)
+        if config.use_partial_classes:
+          # need to select the classes as final_labels
+          mask_logits_t = tf.transpose(mask_logits, [1, 0, 2, 3])
 
-        final_mask_logits = tf.gather_nd(mask_logits,indices)
+          # [C, R, 14, 14]
+          partial_mask_logits_t = tf.gather(mask_logits_t, needed_object_classids)
+          # [R, C, 14, 14]
+          partial_mask_logits = tf.transpose(partial_mask_logits_t, [1, 0, 2, 3])
+
+        indices = tf.stack([tf.range(tf.size(final_labels)), tf.to_int32(final_labels) - 1], axis=1)
+
+        final_mask_logits = tf.gather_nd(mask_logits, indices)
         final_masks = tf.sigmoid(final_mask_logits)
 
         # [R,14,14]
         self.final_masks = final_masks
-
 
       # [R,4]
       self.final_boxes = final_boxes
@@ -834,8 +867,8 @@ class Mask_RCNN_FPN():
           hidden = dense(hidden,dim,W_init=initializer,activation=tf.nn.relu,scope="fc7")
           hidden = hidden + relation_network(hidden, boxes, group=16, geo_feat_dim=64, scope="RM_r2")
         else:
-          hidden = dense(feature,dim,W_init=initializer,activation=tf.nn.relu,scope="fc6")
-          hidden = dense(hidden,dim,W_init=initializer,activation=tf.nn.relu,scope="fc7")
+          hidden = dense(feature, dim,W_init=initializer, activation=tf.nn.relu, scope="fc6")
+          hidden = dense(hidden, dim,W_init=initializer, activation=tf.nn.relu, scope="fc7")
 
       # hidden -> [K, dim]
       if config.use_att_frcnn_head:
@@ -868,7 +901,7 @@ class Mask_RCNN_FPN():
 
         box_regression = box_regression[:,1:,:]
 
-        box_regression.set_shape([None,num_class-1,4])
+        box_regression.set_shape([None, num_class-1,4])
 
     return classification,box_regression
 
@@ -912,7 +945,8 @@ class Mask_RCNN_FPN():
     return classification,box_regression
 
 
-  def maskrcnn_up4conv_head(self,feature,num_class,scope="maskrcnn_head"):
+  def maskrcnn_up4conv_head(self, feature, num_class, scope="maskrcnn_head"):
+    # feature [R, 256, 7, 7]
     config = self.config
     num_conv = 4 # C4 model this is 0
     l = feature
@@ -921,7 +955,8 @@ class Mask_RCNN_FPN():
         l = conv2d(l, config.mrcnn_head_dim, kernel=3, activation=tf.nn.relu, data_format="NCHW",W_init=tf.variance_scaling_initializer(scale=2.0,mode="fan_out",distribution='truncated_normal'), scope="fcn%s"%(k))
 
       l = deconv2d(l, config.mrcnn_head_dim, kernel=2, stride=2, activation=tf.nn.relu, data_format="NCHW", W_init=tf.variance_scaling_initializer(scale=2.0, mode="fan_out", distribution='truncated_normal'), scope="deconv")
-      l = conv2d(l,num_class-1, kernel=1, data_format="NCHW", W_init=tf.variance_scaling_initializer(scale=2.0,mode="fan_out",distribution='normal'), scope="conv")
+      # [R, num_class-1, 14, 14]
+      l = conv2d(l, num_class - 1, kernel=1, data_format="NCHW", W_init=tf.variance_scaling_initializer(scale=2.0,mode="fan_out",distribution='normal'), scope="conv")
       return l
 
 
@@ -968,7 +1003,7 @@ class Mask_RCNN_FPN():
   # [K,num_class] label_probs
   # each proposal box has prob and box to all class
   # here using nms for each class, -> [R]
-  def fastrcnn_predictions(self,boxes, probs, no_score_filter=False, scope="fastrcnn_predictions"):
+  def fastrcnn_predictions(self, boxes, probs, no_score_filter=False, scope="fastrcnn_predictions"):
     with tf.variable_scope(scope):
       config = self.config
 
@@ -983,10 +1018,11 @@ class Mask_RCNN_FPN():
         probs = tf.gather(probs, nonBG_box_indices)
         boxes = tf.gather(boxes, nonBG_box_indices)
 
+      # note if use partial class, config.num_class is not the actual num_class here
 
       # transpose to map_fn along each class
-      boxes = tf.transpose(boxes,[1,0,2]) # [num_class-1, K,4]
-      probs = tf.transpose(probs[:,1:],[1,0]) # [num_class-1, K]
+      boxes = tf.transpose(boxes, [1, 0, 2])  # [num_class-1, K,4]
+      probs = tf.transpose(probs[:, 1:], [1, 0])  # [num_class-1, K]
 
       # for each catagory get the top K
       # [num_class-1, K]

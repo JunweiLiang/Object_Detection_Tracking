@@ -138,7 +138,14 @@ def get_args():
   parser.add_argument("--test_frame_extraction", action="store_true")
   parser.add_argument("--use_my_naming", action="store_true")
 
+  # for efficient use of COCO model classes
+  parser.add_argument("--use_partial_classes", action="store_true")
+
   args = parser.parse_args()
+
+  if args.use_partial_classes:
+    assert args.is_coco_model
+    args.partial_classes = [classname for classname in coco_obj_to_actev_obj]
 
   assert args.gpu == args.im_batch_size  # one gpu one image
   assert args.gpu == 1, "Currently only support single-gpu inference"
@@ -184,6 +191,11 @@ def get_args():
     targetClass2id = coco_obj_class_to_id
     targetid2class = coco_obj_id_to_class
     args.num_class = 81
+    if args.use_partial_classes:
+      partial_classes = ["BG"] + args.partial_classes
+      targetClass2id = {classname: i
+                        for i, classname in enumerate(partial_classes)}
+      targetid2class = {targetClass2id[o]: o for o in targetClass2id}
 
   # ---------------more defautls
   args.is_pack_model = False

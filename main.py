@@ -33,7 +33,7 @@ from utils import Dataset, Summary, nms_wrapper, FIFO_ME
 
 from pycocotools.coco import COCO
 # for using a COCO model to finetuning with DIVA data.
-from class_ids import targetClass1to1, targetClass2id, targetAct2id,targetAct2id_wide,targetAct2id_tall, targetSingleAct2id, targetPairAct2id,targetClass2id_tall,targetClass2id_wide,targetClass2id_wide_v2,targetClass2id_mergeProp,targetClass2id_new,targetClass2id_new_nopo, targetAct2id_bupt, bupt_act_mapping, targetAct2id_meva, meva_act_mapping, coco_obj_class_to_id, coco_obj_id_to_class
+from class_ids import targetClass1to1, targetClass2id, targetAct2id,targetAct2id_wide,targetAct2id_tall, targetSingleAct2id, targetPairAct2id,targetClass2id_tall,targetClass2id_wide,targetClass2id_wide_v2,targetClass2id_mergeProp,targetClass2id_new,targetClass2id_new_nopo, targetAct2id_bupt, bupt_act_mapping, targetAct2id_meva, meva_act_mapping, coco_obj_class_to_id, coco_obj_id_to_class, coco_obj_to_actev_obj
 
 targetid2class = {targetClass2id[one]:one for one in targetClass2id}
 
@@ -319,7 +319,13 @@ def get_args():
   parser.add_argument("--vis_pre",action="store_true",help="visualize preprocess images")
   parser.add_argument("--vis_path",default=None)
 
+
+  # for efficient use of COCO model classes
+  parser.add_argument("--use_partial_classes", action="store_true")
+
   args = parser.parse_args()
+
+
 
   if args.use_cosine_schedule:
     args.use_lr_decay = True
@@ -366,6 +372,7 @@ def get_args():
     targetClass2id = targetClass2id_new_nopo
     targetid2class = {targetClass2id_new_nopo[one]:one for one in targetClass2id_new_nopo}
 
+
   args.classname2id = targetClass2id
   args.classid2name = targetid2class
 
@@ -387,10 +394,16 @@ def get_args():
     targetid2class = {targetAct2id_meva[one]:one for one in targetAct2id_meva}
 
   if args.is_coco_model:
-    assert args.mode == "forward"
+    assert args.mode == "forward" or args.mode == "pack"
     args.diva_class = False
     targetClass2id = coco_obj_class_to_id
     targetid2class = coco_obj_id_to_class
+
+  if args.use_partial_classes:
+    assert args.is_coco_model
+    args.partial_classes = [classname for classname in coco_obj_to_actev_obj]
+    args.classname2id = targetClass2id
+    args.classid2name = targetid2class
 
 
   if not args.tococo:
@@ -1537,7 +1550,6 @@ def forward(config):
               else:
                 for _,boxes,labels,probs in zip(range(len(images)),model_final_boxes,model_final_labels,model_final_probs):
                   sess_input+=[boxes,labels,probs]
-
       outputs = sess.run(sess_input,feed_dict=feed_dict)
       if config.add_mask:
         pn = 4
@@ -1745,8 +1757,6 @@ def forward(config):
           resultfile = os.path.join(config.actoutbasepath,"%s.json"%imagename)
           with open(resultfile,"w") as f:
             json.dump(act_pred,f)
-
-
 
 
 from glob import glob
