@@ -364,7 +364,10 @@ These are my experiences with working on this [surveillance dataset](https://act
 10. ResNeXt does not see significant improvement on this dataset.
 
 ## Training & Testing
-Instruction to train a new model is [here](TRAINING.md).
+Instruction to train a new object detection model is [here](TRAINING.md).
+
+## Training & Testing (Activity Box)
+Instruction to train a new frame-level activity detection model is [here](ACTIVITY_BOX.md).
 
 ## Speed Optimization
 **TL;DR**:
