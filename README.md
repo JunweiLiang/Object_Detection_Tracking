@@ -13,11 +13,17 @@ If you find this code useful in your research then please cite
   year={2019},
   organization={IEEE}
 }
+@article{changmmvg,
+  title={MMVG-INF-Etrol@ TRECVID 2019: Activities in Extended Video},
+  author={Chang, Xiaojun and Liu, Wenhe and Huang, Po-Yao and Li, Changlin and Zhu, Fengda and Han, Mingfei and Li, Mingjie and Ma, Mengyuan and Hu, Siyi and Kang, Guoliang and others}
+  booktitle={TRECVID 2019 Workshop. Gaithersburg, MD, USA},
+  year={2019}
+}
 ```
 
 
 ## Introduction
-We utilize state-of-the-art object deteciton and tracking algorithm in surveillance videos. Our best object detection model basically uses Faster RCNN with a backbone of Resnet-101 with dilated CNN and FPN. The tracking algo (Deep SORT) uses ROI features from the object detection model. The ActEV trained models are good for small object detection in outdoor scenes. For indoor cameras, COCO trained models are better.
+We utilize state-of-the-art object detection and tracking algorithm in surveillance videos. Our best object detection model basically uses Faster RCNN with a backbone of Resnet-101 with dilated CNN and FPN. The tracking algo (Deep SORT) uses ROI features from the object detection model. The ActEV trained models are good for small object detection in outdoor scenes. For indoor cameras, COCO trained models are better.
 
 
 <div align="center">
@@ -87,7 +93,7 @@ $ python vis_json.py v1-val_testvideos.abs.lst v1-val_testvideos_frames/ test_tr
 ```
 Now you have the tracking visualization videos for both "Person" and "Vehicle" class.
 
-4. You can also run both inferencing with frozen graph (See [this](SPEED.md) for instrctions of how to pack the model). Change `--model_path obj_v3.pb` and add `--is_load_from_pb`. It is about 30% faster.
+4. You can also run both inferencing with frozen graph (See [this](SPEED.md) for instructions of how to pack the model). Change `--model_path obj_v3.pb` and add `--is_load_from_pb`. It is about 30% faster.
 
 ## Models
 These are the models you can use for inferencing. The original ActEv annotations can be downloaded from [here](https://next.cs.cmu.edu/data/actev-v1-drop4-yaml.tgz). I will add instruction for training and testing if requested. Click to download each model.
