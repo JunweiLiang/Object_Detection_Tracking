@@ -51,6 +51,7 @@ def get_args():
   parser.add_argument("--threshold_conf", default=0.0001, type=float)
 
   parser.add_argument("--is_load_from_pb", action="store_true", help="load from a frozen graph")
+  parser.add_argument("--log_time_and_gpu", action="store_true")
 
   # ------ for box feature extraction
   parser.add_argument("--get_box_feat", action="store_true",
@@ -343,9 +344,32 @@ def check_args(args):
       os.makedirs(args.box_feat_path)
   #print("cv2 version %s" % (cv2.__version__)
 
+import threading
+from utils import parse_nvidia_smi, sec2time
+
+gpu_util_logs = []
+gpu_temp_logs = []
+
+# use nvidia-smi to
+def log_gpu_util(interval, gpuid_range):
+  global gpu_util_logs
+  while True:
+    time.sleep(interval)
+    gpu_temps, gpu_utils = parse_nvidia_smi(gpuid_range)
+    gpu_util_logs.extend(gpu_utils)
+    gpu_temp_logs.extend(gpu_temps)
 
 if __name__ == "__main__":
   args = get_args()
+
+  if args.log_time_and_gpu:
+    gpu_log_interval = 10 # every k seconds
+    start_time = time.time()
+    gpu_check_thread = threading.Thread(
+        target=log_gpu_util,
+        args=[gpu_log_interval, (args.gpuid_start, args.gpu)])
+    gpu_check_thread.daemon = True
+    gpu_check_thread.start()
 
   check_args(args)
 
@@ -604,4 +628,15 @@ if __name__ == "__main__":
       if args.test_frame_extraction:
         tqdm.write(
           "video %s got %s frames, opencv said frame count is %s" % (videoname, cur_frame, frame_count))
+  if args.log_time_and_gpu:
+    end_time = time.time()
+    print("total run time %s (%s), log gpu utilize every %s seconds and get median %.2f%% and average %.2f%%. GPU temperature median %.2f and average %.2f (C)" % (
+      sec2time(end_time - start_time),
+      end_time - start_time,
+      gpu_log_interval,
+      np.median(gpu_util_logs)*100,
+      np.mean(gpu_util_logs)*100,
+      np.median(gpu_temp_logs),
+      np.mean(gpu_temp_logs),
+    ))
 

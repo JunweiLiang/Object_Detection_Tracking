@@ -289,6 +289,11 @@ These are the models you can use for inferencing. The original ActEv annotations
     <td>0.965</td>
     <td>N/A</td>
   </tr>
+  <tr>
+    <td colspan="6">
+      <a href="https://aladdin-eax.inf.cs.cmu.edu/shares/diva_obj_detect_models/models/obj_coco_resnet50_partial_tfv1.14_1920x1080_rpn300.pb">Object COCO partial</a>
+    : Same model as above with only Person/Vehicle/Bike classes. Save time on NMS. Use it with `--use_partial_classes`</td>
+  </tr>
 </table>
 
 Activity Box Experiments:

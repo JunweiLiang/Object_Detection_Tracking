@@ -12,6 +12,8 @@ parser.add_argument("framepath")
 parser.add_argument("jsonpath")
 parser.add_argument("despath")
 parser.add_argument("--score_thres", default=0.0, type=float)
+parser.add_argument("--show_frame_num", action="store_true")
+parser.add_argument("--show_only_result_frame", action="store_true")
 
 PALETTE_HEX = [
 	"#000000", "#FFFF00", "#1CE6FF", "#FF34FF", "#FF4A46", "#008941", "#006FA6", "#A30059",
@@ -181,7 +183,7 @@ def draw_boxes(im, boxes, labels=None, colors=None,font_scale=0.6,font_thick=1,b
 				# find the best color
 				mean_color = textbox.roi(im).mean(axis=(0, 1))
 				best_color_ind = (np.square(COLOR_CANDIDATES - mean_color) *
-								  COLOR_DIFF_WEIGHT).sum(axis=1).argmax()
+									COLOR_DIFF_WEIGHT).sum(axis=1).argmax()
 				best_color = COLOR_CANDIDATES[best_color_ind].tolist()
 
 			if bottom_text:
@@ -204,7 +206,7 @@ def draw_boxes(im, boxes, labels=None, colors=None,font_scale=0.6,font_thick=1,b
 				box[1]-=offset
 
 		cv2.rectangle(im, (box[0], box[1]), (box[2], box[3]),
-					  color=best_color, thickness=box_thick)
+						color=best_color, thickness=box_thick)
 	return im
 
 if __name__ == "__main__":
@@ -217,14 +219,16 @@ if __name__ == "__main__":
 
 	for videoname in tqdm(videonames, ascii=True):
 		frames = glob(os.path.join(args.framepath, videoname, "*.jpg"))
+		frames.sort()
 
 		target_path = os.path.join(args.despath, videoname)
 		if not os.path.exists(target_path):
 			os.makedirs(target_path)
 
+		actual_count = 0
 		for frame in frames:
 			filename = os.path.splitext(os.path.basename(frame))[0]
-
+			frameIdx = int(filename.split("_F_")[-1])
 			jsonfile = os.path.join(args.jsonpath, "%s.json"%filename)
 
 			boxes = []
@@ -263,10 +267,22 @@ if __name__ == "__main__":
 						color = color_assign[cat_name]
 						box_colors.append(color)
 
+			else:
+				if args.show_only_result_frame:
+					continue
+
 			ori_im = cv2.imread(frame, cv2.IMREAD_COLOR)
 
 			new_im = draw_boxes(ori_im, boxes, labels, box_colors, font_scale=0.8, font_thick=10, box_thick=2,bottom_text=False)
 
-			target_file = os.path.join(target_path, "%s.jpg"%filename)
+			if args.show_frame_num:
+				# write the frame idx
+				cv2.putText(new_im, "# %d" % frameIdx,
+										(0, 20), cv2.FONT_HERSHEY_SIMPLEX,
+										1, (0, 255, 0), 2)
+			if args.show_only_result_frame:
+				filename = "%08d" % actual_count
+				actual_count += 1
+			target_file = os.path.join(target_path, "%s.jpg" % filename)
 
 			cv2.imwrite(target_file, new_im)
