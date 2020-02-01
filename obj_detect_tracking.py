@@ -88,6 +88,13 @@ def get_args():
   parser.add_argument("--short_edge_size", type=int, default=1080,
             help="num roi per image for RPN and fastRCNN training")
 
+  # use lijun video loader, this should deal with avi videos with duplicate frames
+  parser.add_argument(
+      "--use_lijun_video_loader", action="store_true",
+      help="use video loader from https://github.com/Lijun-Yu/diva_io")
+  parser.add_argument("--use_moviepy", action="store_true")
+
+
   # ----------- tracking params
   parser.add_argument("--get_tracking", action="store_true",
             help="this will generate tracking results for each frame")
@@ -101,10 +108,17 @@ def get_args():
   parser.add_argument("--min_detection_height", default=0, type=int,
             help="Threshold on the detection bounding box height. Detections "
                "with height smaller than this value are disregarded")
+  # this does not make a big difference
   parser.add_argument("--nms_max_overlap", default=0.85, type=float,
             help="Non-maxima suppression threshold: Maximum detection overlap.")
+
+  # Tingyao use 0.9
+  parser.add_argument("--max_iou_distance", type=float, default=0.5,
+            help="Iou distance for tracker.")
+  # Tingyao use 0.1
   parser.add_argument("--max_cosine_distance", type=float, default=0.5,
             help="Gating threshold for cosine distance metric (object appearance).")
+  # nn_budget smaller more tracks
   parser.add_argument("--nn_budget", type=int, default=5,
             help="Maximum size of the appearance descriptors gallery. If None, no budget is enforced.")
 
@@ -379,6 +393,15 @@ if __name__ == "__main__":
     if not os.path.exists(args.out_dir):
       os.makedirs(args.out_dir)
 
+  # 2020, deal with opencv  avi video "bug": https://github.com/opencv/opencv/issues/9053
+  # need pyav
+  if args.use_lijun_video_loader:
+    # https://github.com/Lijun-Yu/diva_io
+    from diva_io.video import VideoReader
+
+  if args.use_moviepy:
+    from moviepy.editor import VideoFileClip
+
   if args.visualize:
     from viz import draw_boxes
 
@@ -402,12 +425,30 @@ if __name__ == "__main__":
 
     for videofile in tqdm(videolst, ascii=True):
       # 2. read the video file
-      try:
-        vcap = cv2.VideoCapture(videofile)
-        if not vcap.isOpened():
-          raise Exception("cannot open %s" % videofile)
-      except Exception as e:
-        raise e
+      if args.use_lijun_video_loader:
+        vcap = VideoReader(videofile)
+        frame_count = int(vcap.length)
+      elif args.use_moviepy:
+        vcap = VideoFileClip(videofile)
+        frame_count = int(vcap.fps * vcap.duration)  # uh
+        vcap_iter = vcap.iter_frames()
+      else:
+        try:
+          vcap = cv2.VideoCapture(videofile)
+          if not vcap.isOpened():
+            raise Exception("cannot open %s" % videofile)
+        except Exception as e:
+          # raise e
+          # just move on to the next video
+          print("warning, cannot open %s" % videofile)
+          continue
+
+        # opencv 2
+        if cv2.__version__.split(".")[0] == "2":
+          frame_count = vcap.get(cv2.cv.CV_CAP_PROP_FRAME_COUNT)
+        else:
+          # opencv 3/4
+          frame_count = vcap.get(cv2.CAP_PROP_FRAME_COUNT)
 
       # initialize tracking module
       if args.get_tracking:
@@ -418,7 +459,8 @@ if __name__ == "__main__":
         for tracking_obj in tracking_objs:
           metric = metric = nn_matching.NearestNeighborDistanceMetric(
             "cosine", args.max_cosine_distance, args.nn_budget)
-          tracker_dict[tracking_obj] = Tracker(metric)
+          tracker_dict[tracking_obj] = Tracker(
+              metric, max_iou_distance=args.max_iou_distance)
           tracking_results_dict[tracking_obj] = []
           tmp_tracking_results_dict[tracking_obj] = {}
 
@@ -435,19 +477,16 @@ if __name__ == "__main__":
         if not os.path.exists(feat_out_path):
           os.makedirs(feat_out_path)
 
-      # opencv 2
-      if cv2.__version__.split(".")[0] == "2":
-        frame_count = vcap.get(cv2.cv.CV_CAP_PROP_FRAME_COUNT)
-      else:
-        # opencv 3/4
-        frame_count = vcap.get(cv2.CAP_PROP_FRAME_COUNT)
-
       # 3. read frame one by one
       cur_frame = 0
       vis_count = 0
       frame_stack = []
       while cur_frame < frame_count:
-        suc, frame = vcap.read()
+        if args.use_moviepy:
+          suc = True
+          frame = next(vcap_iter)
+        else:
+          suc, frame = vcap.read()
         if not suc:
           cur_frame += 1
           tqdm.write("warning, %s frame of %s failed" % (cur_frame, videoname))
@@ -605,6 +644,9 @@ if __name__ == "__main__":
 
         cur_frame += 1
 
+      if not args.use_lijun_video_loader and not args.use_moviepy:
+        vcap.release()
+
       if args.get_tracking:
         for tracking_obj in tracking_objs:
           output_dir = os.path.join(args.tracking_dir, videoname, tracking_obj)
@@ -639,4 +681,5 @@ if __name__ == "__main__":
       np.median(gpu_temp_logs),
       np.mean(gpu_temp_logs),
     ))
+  cv2.destroyAllWindows()
 

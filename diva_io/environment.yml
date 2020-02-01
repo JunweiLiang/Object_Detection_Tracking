@@ -1,0 +1,8 @@
+name: diva_io
+channels:
+  - pkgs/main
+  - conda-forge
+dependencies:
+  - python
+  - numpy
+  - av

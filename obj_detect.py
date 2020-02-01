@@ -469,4 +469,6 @@ if __name__ == "__main__":
 
       if args.test_frame_extraction:
         tqdm.write("video %s got %s frames, opencv said frame count is %s" % (videoname, cur_frame, frame_count))
+      vcap.release()
+  cv2.destroyAllWindows()
 
