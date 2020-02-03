@@ -90,7 +90,7 @@ if __name__ == "__main__":
       videoname = "__".join(prefixes + [videoname])
 
     if args.use_moviepy:
-      vcap = VideoFileClip(video)
+      vcap = VideoFileClip(video, audio=False)
       frame_count = int(vcap.fps * vcap.duration)  # uh
       vcap_iter = vcap.iter_frames()
     elif args.use_lijun:
@@ -131,6 +131,7 @@ if __name__ == "__main__":
       if args.use_moviepy:
         suc = True
         frame = next(vcap_iter)
+
       else:
         suc, frame = vcap.read()
 
@@ -139,6 +140,9 @@ if __name__ == "__main__":
         tqdm.write("warning, %s frame of %s failed"%(cur_frame,videoname))
         continue
       count_actual+=1
+      if args.use_moviepy:
+          # moviepy ask ffmpeg to get rgb24
+          frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
       frame = frame.astype("float32")
 
       if args.resize:

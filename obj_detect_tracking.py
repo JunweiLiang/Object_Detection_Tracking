@@ -429,7 +429,7 @@ if __name__ == "__main__":
         vcap = VideoReader(videofile)
         frame_count = int(vcap.length)
       elif args.use_moviepy:
-        vcap = VideoFileClip(videofile)
+        vcap = VideoFileClip(videofile, audio=False)
         frame_count = int(vcap.fps * vcap.duration)  # uh
         vcap_iter = vcap.iter_frames()
       else:
@@ -498,7 +498,9 @@ if __name__ == "__main__":
           continue
 
         # 4. run detection on the frame stack if there is enough
-
+        if args.use_moviepy:
+          # moviepy ask ffmpeg to get rgb24
+          frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
         im = frame.astype("float32")
 
         if args.test_frame_extraction:
