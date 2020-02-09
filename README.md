@@ -1,6 +1,6 @@
 # CMU Object Detection & Tracking for Surveillance Video Activity Detection
 
-This repository contains the code and models for object detection and tracking from the CMU [DIVA](https://www.iarpa.gov/index.php/research-programs/diva) system. Our system (INF & MUDSML) achieves the **best performance** on the ActEv [leaderboard](https://actev.nist.gov/prizechallenge#tab_leaderboard) ([Cached](https://www.cs.cmu.edu/~junweil/resources/actev-prizechallenge-06-2019.png)).
+This repository contains the code and models for object detection and tracking from the CMU [DIVA](https://www.iarpa.gov/index.php/research-programs/diva) system. Our system (INF & MUDSML) achieves the **best performance** on the ActEv [leaderboard](https://actev.nist.gov/prizechallenge#tab_leaderboard) ([Cached](images/actev-prizechallenge-06-2019.png)).
 
 If you find this code useful in your research then please cite
 
@@ -34,6 +34,7 @@ We utilize state-of-the-art object detection and tracking algorithm in surveilla
 </div>
 
 ## Updates
+[02/2020] We used Resnet-50 FPN model trained on MS-COCO for [MEVA](http://mevadata.org/) activity detection and got a competitive pAUDC of [0.49](images/inf_actev_0.49audc_02-2020.png) with a total processing speed of 0.64x real-time on a 4-GPU machine. The object detection module's processing speed is about 0.125x real-time. \[[Frozen Model](https://aladdin-eax.inf.cs.cmu.edu/shares/diva_obj_detect_models/models/obj_coco_resnet50_partial_tfv1.14_1280x720_rpn300.pb)\] \[[Example Command](COMMANDS.md)\]
 
 [01/2020] We discovered a problem with using OpenCV to extract frames for avi videos. Some avi videos have duplicate frames that are not physically presented in the files but only text instructions to duplicate previous frames. The problem is that OpenCV skip these frames without warning according to [this bug report](https://github.com/opencv/opencv/issues/9053) and [here](https://stackoverflow.com/questions/44488636/opencv-reading-frames-from-videocapture-advances-the-video-to-bizarrely-wrong-l/44551037). Therefore with OpenCV you may get fewer frames which causes the frame index of detection results to be incorrect. Solution: 1. convert the avi videos to mp4 format; 2. use MoviePy or [Lijun's video loader](https://github.com/Lijun-Yu/diva_io) (based on PyAV) but they are 10% ~ 30% slower than OpenCV frame extraction. See `obj_detect_tracking.py` for implementation.
 
@@ -365,18 +366,6 @@ Activity Box Experiments:
   </tr>
 </table>
 
-## Other things I have tried
-These are my experiences with working on this [surveillance dataset](https://actev.nist.gov/):
-1. FPN provides significant improvement over non-FPN backbone;
-2. Dilated CNN in backbone also helps but Squeeze-Excitation block is unclear (see model obj_v6);
-3. Deformable CNN in backbone seems to achieve same improvement as dilated CNN but [my implementation](nn.py#L1375) is way too slow.
-4. Cascade RCNN doesn't help (IOU=0.5). I'm using IOU=0.5 in my evaluation since the original annotations are not "tight" bounding boxes.
-5. Decoupled RCNN (using a separate Resnet-101 for box classification) slightly improves AP (Person: 0.836 -> 0.837) but takes 7x more time.
-6. SoftNMS shows mixed results and add 5% more computation time to system (since I used the CPU version). So I don't use it.
-7. Tried [Mix-up](https://arxiv.org/abs/1710.09412) by randomly mixing ground truth bounding boxes from different frames. Doesn't improve performance.
-8. Focal loss doesn't help.
-9. [Relation Network](https://arxiv.org/abs/1711.11575) does not improve and the model is huge ([my implementation](nn.py#L100)).
-10. ResNeXt does not see significant improvement on this dataset.
 
 ## Training & Testing
 Instruction to train a new object detection model is [here](TRAINING.md).
@@ -392,6 +381,19 @@ Instruction to train a new frame-level activity detection model is [here](ACTIVI
 - Use TensorRT (INT8) optimized graph ?
 
 Experiments are recorded [here](SPEED.md).
+
+## Other things I have tried
+These are my experiences with working on this [surveillance dataset](https://actev.nist.gov/):
+1. FPN provides significant improvement over non-FPN backbone;
+2. Dilated CNN in backbone also helps but Squeeze-Excitation block is unclear (see model obj_v6);
+3. Deformable CNN in backbone seems to achieve same improvement as dilated CNN but [my implementation](nn.py#L1375) is way too slow.
+4. Cascade RCNN doesn't help (IOU=0.5). I'm using IOU=0.5 in my evaluation since the original annotations are not "tight" bounding boxes.
+5. Decoupled RCNN (using a separate Resnet-101 for box classification) slightly improves AP (Person: 0.836 -> 0.837) but takes 7x more time.
+6. SoftNMS shows mixed results and add 5% more computation time to system (since I used the CPU version). So I don't use it.
+7. Tried [Mix-up](https://arxiv.org/abs/1710.09412) by randomly mixing ground truth bounding boxes from different frames. Doesn't improve performance.
+8. Focal loss doesn't help.
+9. [Relation Network](https://arxiv.org/abs/1711.11575) does not improve and the model is huge ([my implementation](nn.py#L100)).
+10. ResNeXt does not see significant improvement on this dataset.
 
 ## Acknowledgements
 I made this code by studying the nice example in [Tensorpack](https://github.com/tensorpack/tensorpack/tree/master/examples/FasterRCNN).
