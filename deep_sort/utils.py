@@ -47,12 +47,16 @@ def linear_inter_bbox(tracking_data, frame_gap):
   # if len(tracking_data_list) == 0:
   #   return tracking_data
 
+  # for each track
   for obj_index in obj_ids:
     mask = obj_indices == obj_index
+    # all the frames for this track
     tracked_frames = tracking_data[mask][:,0].tolist()
+
     min_frame_idx = int(min(tracked_frames))
     max_frame_idx = int(max(tracked_frames))
-    whole_frames = range(min_frame_idx, max_frame_idx + frame_gap, frame_gap)
+    #whole_frames = range(min_frame_idx, max_frame_idx + frame_gap, frame_gap)
+    whole_frames = range(min_frame_idx, max_frame_idx)
     missing_frames = list(set(whole_frames).difference(tracked_frames))
     if len(missing_frames) == 0:
       continue
