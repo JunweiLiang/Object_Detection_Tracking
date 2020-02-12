@@ -12,4 +12,5 @@ $ python obj_detect_tracking.py \
  --use_lijun_video_loader --nms_max_overlap 0.85 --max_iou_distance 0.5 \
  --max_cosine_distance 0.5 --nn_budget 5
 ```
-\*Add `--log_time_and_gpu` to get GPU utilization and time profile.
+This is for processing AVI videos. For MP4 videos, run without `--use_lijun`.
+Add `--log_time_and_gpu` to get GPU utilization and time profile.
