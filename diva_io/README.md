@@ -1,15 +1,21 @@
 # DIVA IO Package
 
-Version 0.2
+Version 0.3
 
 Author: Lijun Yu
 
 Email: lijun@lj-y.com
 
+IO interfaces for the [DIVA](https://www.iarpa.gov/index.php/research-programs/diva) project.
+
 ## Version History
 
-* 0.2
-  * **Real** random access in video loader.
+* 0.3
+  * Optimized random access and fix missing.
+  * Robustness improvement.
+  * Speed test.
+* 0.2 (Deprecated)
+  * Real random access in video loader.
   * Add annotation converter.
   * Warning control option.
 * 0.1
@@ -22,19 +28,19 @@ Email: lijun@lj-y.com
 To use as a submodule in your git project, run
 
 ```sh
-git submodule add https://github.com/Lijun-Yu/diva-io.git diva_io
+git submodule add https://github.com/Lijun-Yu/diva_io.git
 ```
 
 ### Requirements
 
-Environment requirements are listed in `environment.yml`.
+Environment requirements are listed in [environment.yml](environment.yml).
 For the `av` package, I recommend you install it via `conda` by
 
 ```sh
 conda install av -c conda-forge
 ```
 
-as building from `pip` would require a lot of dependencies.
+as building from `pip` would require a lot of [dependencies](http://docs.mikeboers.com/pyav/7.0.0/overview/installation.html#dependencies).
 
 ## Video Loader
 
@@ -96,11 +102,16 @@ for frame in video.get_iter(length):
 video.width # cap.get(cv2.CAP_PROP_FRAME_WIDTH)
 video.height # cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
 video.fps # cap.get(cv2.CAP_PROP_FPS)
+video.length # cap.get(cv2.CAP_PROP_FRAME_COUNT)
 ```
 
 ### Other Interfaces
 
-For other usages, please see the comments in `video/reader.py`.
+For other usages, please see the comments in [video/reader.py](video/reader.py).
+
+### Speed
+
+See [speed.md](docs/speed.md).
 
 ## Annotation
 
