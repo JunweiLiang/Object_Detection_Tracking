@@ -14,6 +14,7 @@ class Frame(object):
         fix_missing_offset : int, optional
             Frame id offset to fix a missing frame, by default 0
         """
+        assert isinstance(frame, VideoFrame)
         self.frame = frame
         self.fix_missing_offset = fix_missing_offset
 
@@ -67,7 +68,7 @@ class Frame(object):
     @property
     def frame_index_store(self):
         """The frame index as stored in the video, 0 based.
-        If you used cv2.VideoCapture.read() to read a video sequentially, this
+        If you used cv2.VideoCapture.read() to read a video sequentially, this 
         is the index you would get.
 
         Returns
