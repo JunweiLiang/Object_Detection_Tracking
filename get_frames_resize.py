@@ -1,35 +1,46 @@
 # coding=utf-8
-# given a list of videos, get all the frames and resize
-# note that the frames are 0-indexed
+"""
+  given a list of videos, get all the frames and resize note that the
+  frames are 0-indexed
+"""
 
-import sys,os,argparse
+import argparse
+import cv2
+import os
+import pickle
+import sys
+
 from tqdm import tqdm
-import cPickle as pickle
 
-def get_args():
-  parser = argparse.ArgumentParser()
+parser = argparse.ArgumentParser()
 
-  parser.add_argument("videolist")
-  parser.add_argument("despath")
+parser.add_argument("videolist")
+parser.add_argument("despath")
 
-  parser.add_argument("--size",default=800,type=int)
-  parser.add_argument("--maxsize",default=1333,type=int)
+parser.add_argument("--resize", default=False, action="store_true")
+parser.add_argument("--size", default=800, type=int)
+parser.add_argument("--maxsize", default=1333, type=int)
 
-  parser.add_argument("--resize",default=False,action="store_true")
 
-  parser.add_argument("--job",type=int,default=1,help="total job")
-  parser.add_argument("--curJob",type=int,default=1,help="this script run job Num")
-  parser.add_argument("--statspath",default=None,help="path to write videoname.p to save some stats for that video")
-  parser.add_argument("--use_2level",action="store_true",help="make videoname/frames dir")
-  parser.add_argument("--name_level",type=int,default=None,help="add the top level folder name to the videoname")
-  parser.add_argument("--cv2path",default=None)
 
-  parser.add_argument("--use_moviepy", action="store_true")
-  parser.add_argument("--use_lijun", action="store_true")
+parser.add_argument("--job", type=int, default=1, help="total job")
+parser.add_argument("--curJob", type=int, default=1,
+                    help="this script run job Num")
+parser.add_argument("--statspath", default=None,
+                    help="path to write videoname.p to save some stats for "
+                         "that video")
+parser.add_argument("--use_2level", action="store_true",
+                    help="make videoname/frames dir")
+parser.add_argument("--name_level", type=int, default=None,
+                    help="add the top level folder name to the videoname")
+parser.add_argument("--cv2path", default=None)
 
-  return parser.parse_args()
+parser.add_argument("--use_moviepy", action="store_true")
+parser.add_argument("--use_lijun", action="store_true")
 
-def get_new_hw(h,w,size,max_size):
+
+def get_new_hw(h, w, size, max_size):
+  """Get new hw."""
   scale = size * 1.0 / min(h, w)
   if h < w:
     newh, neww = size, scale * w
@@ -41,14 +52,13 @@ def get_new_hw(h,w,size,max_size):
     neww = neww * scale
   neww = int(neww + 0.5)
   newh = int(newh + 0.5)
-  return neww,newh
+  return neww, newh
 
 
 if __name__ == "__main__":
-  args = get_args()
+  args = parser.parse_args()
   if args.cv2path is not None:
     sys.path = [args.cv2path] + sys.path
-
 
   if args.use_moviepy:
     from moviepy.editor import VideoFileClip
@@ -56,8 +66,7 @@ if __name__ == "__main__":
     from diva_io.video import VideoReader
 
   # still need this to write image
-  import cv2
-  print "using opencv version:%s"%(cv2.__version__)
+  print("using opencv version:%s"%(cv2.__version__))
 
   if not os.path.exists(args.despath):
     os.makedirs(args.despath)
@@ -65,22 +74,23 @@ if __name__ == "__main__":
   if  args.statspath is not None and not os.path.exists(args.statspath):
     os.makedirs(args.statspath)
 
-  count=0
-  for line in tqdm(open(args.videolist,"r").readlines()):
-    count+=1
-    if((count % args.job) != (args.curJob-1)):
+  count = 0
+  for line in tqdm(open(args.videolist, "r").readlines()):
+    count += 1
+    if (count % args.job) != (args.curJob-1):
       continue
 
     video = line.strip()
 
-    stats = {"h":None,"w":None,"fps":None,"frame_count":None,"actual_frame_count":None}
+    stats = {"h":None, "w":None, "fps":None, "frame_count":None,
+             "actual_frame_count":None}
 
     videoname = os.path.splitext(os.path.basename(video))[0]
 
     targetpath = args.despath
 
     if args.use_2level:
-      targetpath = os.path.join(args.despath,videoname)
+      targetpath = os.path.join(args.despath, videoname)
       if not os.path.exists(targetpath):
         os.makedirs(targetpath)
 
@@ -125,8 +135,8 @@ if __name__ == "__main__":
 
     stats['frame_count'] = frame_count
 
-    cur_frame=0
-    count_actual=0
+    cur_frame = 0
+    count_actual = 0
     while cur_frame < frame_count:
       if args.use_moviepy:
         suc = True
@@ -136,29 +146,31 @@ if __name__ == "__main__":
         suc, frame = vcap.read()
 
       if not suc:
-        cur_frame+=1
-        tqdm.write("warning, %s frame of %s failed"%(cur_frame,videoname))
+        cur_frame += 1
+        tqdm.write("warning, %s frame of %s failed" % (cur_frame, videoname))
         continue
-      count_actual+=1
+      count_actual += 1
       if args.use_moviepy:
-          # moviepy ask ffmpeg to get rgb24
-          frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+        # moviepy ask ffmpeg to get rgb24
+        frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+
       frame = frame.astype("float32")
 
       if args.resize:
-        neww,newh = get_new_hw(frame.shape[0],frame.shape[1],args.size,args.maxsize)
+        neww, newh = get_new_hw(frame.shape[0],
+                                frame.shape[1], args.size, args.maxsize)
 
-        frame = cv2.resize(frame,(neww,newh),interpolation=cv2.INTER_LINEAR)
+        frame = cv2.resize(frame, (neww, newh), interpolation=cv2.INTER_LINEAR)
 
-      cv2.imwrite(os.path.join(targetpath,"%s_F_%08d.jpg"%(videoname,cur_frame)),frame)
+      cv2.imwrite(os.path.join(targetpath,
+                               "%s_F_%08d.jpg" % (videoname, cur_frame)), frame)
 
-      cur_frame+=1
+      cur_frame += 1
 
     stats['actual_frame_count'] = count_actual
 
     if args.statspath is not None:
-      with open(os.path.join(args.statspath,"%s.p"%videoname),"wb") as fs:
-        pickle.dump(stats,fs)
+      with open(os.path.join(args.statspath, "%s.p" % videoname), "wb") as fs:
+        pickle.dump(stats, fs)
     if not args.use_moviepy and not args.use_lijun:
       vcap.release()
-

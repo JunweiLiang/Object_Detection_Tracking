@@ -13,11 +13,12 @@ If you find this code useful in your research then please cite
   year={2019},
   organization={IEEE}
 }
-@article{changmmvg,
-  title={MMVG-INF-Etrol@ TRECVID 2019: Activities in Extended Video},
-  author={Chang, Xiaojun and Liu, Wenhe and Huang, Po-Yao and Li, Changlin and Zhu, Fengda and Han, Mingfei and Li, Mingjie and Ma, Mengyuan and Hu, Siyi and Kang, Guoliang and others}
-  booktitle={TRECVID 2019 Workshop. Gaithersburg, MD, USA},
-  year={2019}
+@inproceedings{liu2020wacv,
+  author = {Liu, Wenhe and Kang, Guoliang and Huang, Po-Yao and Chang, Xiaojun and Qian, Yijun and Liang, Junwei and Gui, Liangke and Wen, Jing and Chen, Peng},
+  title = {Argus: Efficient Activity Detection System for Extended Video Analysis},
+  booktitle = {The IEEE Winter Conference on Applications of Computer Vision (WACV) Workshops},
+  month = {March},
+  year = {2020}
 }
 ```
 
@@ -44,12 +45,14 @@ The code is originally written for Tensorflow v1.10 with Python 2/3 but it works
 Other dependencies: numpy; scipy; sklearn; cv2; matplotlib; pycocotools
 
 ## Code Overview
-- `obj_detect.py`: Inference code for object detection.
 - `obj_detect_tracking.py`: Inference code for object detection & tracking.
 - `models.py`: Main model definition.
 - `nn.py`: Some layer definitions.
 - `main.py`: Code I used for training and testing experiments.
-
+- `eval.py`: Code I used for getting mAP/mAR.
+- `vis_json.py`: visualize the json outputs.
+- `get_frames_resize.py`: code for extracting frames from videos.
+- `utils.py`: some helper classes like getting moving average of losses and GPU usage.
 
 ## Inferencing
 1. First download some test videos and the v3 model (v4-v6 models are un-verified models as we don't have a test set with ground truth):
