@@ -20,6 +20,11 @@ os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 import logging
 logging.getLogger("tensorflow").disabled = True
 
+import matplotlib
+# avoid the warning "gdk_cursor_new_for_display:
+# assertion 'GDK_IS_DISPLAY (display)' failed" with Python 3
+matplotlib.use('Agg')
+
 from tqdm import tqdm
 
 import numpy as np
