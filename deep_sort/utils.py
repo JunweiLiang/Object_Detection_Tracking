@@ -21,8 +21,13 @@ def create_obj_infos(cur_frame, final_boxes, final_probs, final_labels,
       continue
     box[2] -= box[0]
     box[3] -= box[1]
-    avg_feat = np.mean(np.mean(box_feats[j], axis=1), axis=1)
+    avg_feat = box_feats[j]
+    if len(avg_feat.shape) > 2:
+      avg_feat = np.mean(np.mean(box_feats[j], axis=1), axis=1)
+
+
     norm_feat = avg_feat / np.linalg.norm(avg_feat)
+
     list_feat = norm_feat.tolist()
     bbox_data = [cur_frame, box[0], box[1], box[2], box[3], confidence_socre] + list_feat
     obj_infos.append(bbox_data)

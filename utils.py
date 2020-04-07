@@ -9,11 +9,16 @@ import sys
 import os
 import operator
 import cv2
-import commands
+#import commands
+if sys.version_info > (3, 0):
+  import subprocess as commands
+else:
+  import commands
 
 import tensorflow as tf
 from operator import mul
-from itertools import izip_longest
+#from itertools import izip_longest
+import itertools
 
 from collections import defaultdict
 import numpy as np
@@ -43,7 +48,10 @@ def grouper(l, n, fillvalue=None):
   # given a list and n(batch_size), devide list into n sized chunks
   # last one will fill None
   args = [iter(l)]*n
-  out = izip_longest(*args, fillvalue=fillvalue)
+  if sys.version_info > (3, 0):
+    out = itertools.zip_longest(*args, fillvalue=None)
+  else:
+    out = itertools.izip_longest(*args, fillvalue=None)
   out = list(out)
   return out
 

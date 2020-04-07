@@ -187,7 +187,8 @@ def draw_boxes(im, boxes, labels=None, color=None,font_scale=0.3,thickness=1):
 
 		cat_name = labels[i].split(",")[0]
 		#color = None
-		if cat2color.has_key(cat_name):
+		#if cat2color.has_key(cat_name):
+		if cat_name in cat2color:
 			color = cat2color[cat_name]
 
 		best_color = COLOR if color is None else color
@@ -210,7 +211,7 @@ def draw_boxes(im, boxes, labels=None, color=None,font_scale=0.3,thickness=1):
 				best_color_ind = (np.square(COLOR_CANDIDATES - mean_color) *
 								  COLOR_DIFF_WEIGHT).sum(axis=1).argmax()
 				best_color = COLOR_CANDIDATES[best_color_ind].tolist()
-
+			best_color = list(np.array(best_color, dtype="float"))
 			cv2.putText(im, label, (textbox.x1, textbox.y2),
 						FONT, FONT_SCALE, color=best_color)#, lineType=cv2.LINE_AA)
 		cv2.rectangle(im, (box[0], box[1]), (box[2], box[3]),
@@ -345,8 +346,8 @@ def draw_mask(im, mask, alpha=0.5, color=None, show_border=True,border_thick=1):
 	"""
 	if color is None:
 		color = PALETTE_RGB[np.random.choice(len(PALETTE_RGB))][::-1]
-		
-		
+
+
 	im = np.where(np.squeeze(np.repeat((mask > 0)[:, :, None], 3, axis=2)),
 				  im * (1 - alpha) + color * alpha, im)
 	if show_border:
@@ -360,7 +361,7 @@ def draw_mask(im, mask, alpha=0.5, color=None, show_border=True,border_thick=1):
 	return im
 
 def decode_mask(mask_obj):
-	
+
 	mask = cocomask.decode([mask_obj])
 	#print mask.shape
 	return mask
@@ -370,7 +371,7 @@ def convert_box(box):
 	return [box[0],box[1],box[0]+box[2],box[1]+box[3]]
 
 
-# conver from (x1,y1,x2,y2)  to coco (x,y,w,h) 
+# conver from (x1,y1,x2,y2)  to coco (x,y,w,h)
 def to_coco_box(box):
 	return [box[0],box[1],box[2]-box[0],box[3]-box[1]]
 
@@ -393,13 +394,14 @@ def draw_result(im,data,hasmask=False,haskp=False,nobox=False,kp_thresh=2.0,font
 		newim = draw_boxes(im,boxes,tags,color=np.array([255,0,0]),font_scale=font_scale,thickness=thickness)
 	else:
 		newim = im
-	
+
 	if hasmask:
 		for one in data:
 			# ---- specially for site visit
 			cat_name = one['cat_name']
 			color = None
-			if cat2color.has_key(cat_name):
+			#if cat2color.has_key(cat_name):
+			if cat_name in cat2color:
 				color = cat2color[cat_name]
 			# --------------------------
 
@@ -446,7 +448,7 @@ if __name__ == "__main__":
 				newdata.append(one)
 
 	data = newdata
-	# --------------------- 
+	# ---------------------
 
 	data = [one for one in data if one['score'] >= args.thres]
 
@@ -461,7 +463,7 @@ if __name__ == "__main__":
 		data = [one for one in data if one['cat_name'].lower() == args.only.lower()]
 
 	# convert the boexs format from COCO
-	for i in xrange(len(data)):
+	for i in range(len(data)):
 		data[i]['bbox'] = convert_box(data[i]['bbox'])
 
 	newimg = draw_result(img,data,hasmask=args.mask,haskp=args.kp,nobox=args.nobox,kp_thresh=args.kp_thres)

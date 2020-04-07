@@ -41,9 +41,9 @@ def average_gradients(tower_grads,sum_grads=False):
 class Trainer():
 	def __init__(self,models,config):
 		self.config = config
-		self.models = models 
-		self.global_step = models[0].global_step # 
-		
+		self.models = models
+		self.global_step = models[0].global_step #
+
 		learning_rate = config.init_lr
 
 		if config.use_lr_decay:
@@ -55,17 +55,17 @@ class Trainer():
 				self.global_step,
 				config.warm_up_steps,
 				config.init_lr,
-				power=1.0, 
+				power=1.0,
 			)
-						
-			if config.use_cosine_schedule:				
+
+			if config.use_cosine_schedule:
 				max_steps = int(config.train_num_examples / config.im_batch_size * config.num_epochs)
 				schedule_lr = tf.train.cosine_decay(
 				 	config.init_lr,
 					self.global_step - config.warm_up_steps - config.same_lr_steps,
 					max_steps - config.warm_up_steps - config.same_lr_steps,
 					alpha=0.0
-				)			
+				)
 			else:
 				decay_steps = int(config.train_num_examples / config.im_batch_size * config.num_epoch_per_decay)
 				schedule_lr = tf.train.exponential_decay(
@@ -101,7 +101,7 @@ class Trainer():
 		self.rpn_box_losses = [model.rpn_box_loss for model in models]
 		self.fastrcnn_label_losses = [model.fastrcnn_label_loss for model in models]
 		self.fastrcnn_box_losses = [model.fastrcnn_box_loss for model in models]
-		
+
 
 		if config.wd is not None:
 			self.wd = [model.wd for model in models]
@@ -126,7 +126,7 @@ class Trainer():
 				if config.clip_gradient_norm is not None:
 					grad = [(tf.clip_by_value(g, -1*config.clip_gradient_norm, config.clip_gradient_norm), var) for g, var in grad]
 				self.grads.append(grad)
-		
+
 		# apply gradient on the controlling device
 		with tf.device(config.controller):
 			avg_loss = tf.reduce_mean(self.losses)
@@ -135,30 +135,30 @@ class Trainer():
 			self.train_op = self.opt.apply_gradients(avg_grads,global_step=self.global_step)
 			self.loss = avg_loss
 
-		
 
-	def step(self,sess,batch,get_summary=False): 
+
+	def step(self,sess,batch,get_summary=False):
 		assert isinstance(sess,tf.Session)
 		config = self.config
 
 		# idxs is a tuple (23,123,33..) index for sample
 		batchIdx,batch_datas = batch
 		#assert len(batch_datas) == len(self.models) # there may be less data in the end
-		
+
 		feed_dict = {}
-	
+
 		for batch_data, model in zip(batch_datas, self.models): # if batch is smaller so will the input?
 			feed_dict.update(model.get_feed_dict(batch_data,is_train=True))
 
 		sess_input = []
 		sess_input.append(self.loss)
 
-		for i in xrange(len(self.models)):
+		for i in range(len(self.models)):
 			sess_input.append(self.rpn_label_losses[i])
 			sess_input.append(self.rpn_box_losses[i])
 			sess_input.append(self.fastrcnn_label_losses[i])
 			sess_input.append(self.fastrcnn_box_losses[i])
-			
+
 			if config.wd is not None:
 				sess_input.append(self.wd[i])
 
@@ -179,7 +179,7 @@ class Trainer():
 		rpn_box_losses = outs[2::skip][:len(self.models)]
 		fastrcnn_label_losses = outs[3::skip][:len(self.models)]
 		fastrcnn_box_losses = outs[4::skip][:len(self.models)]
-		
+
 		now = 4
 		wd = [-1 for m in self.models]
 		if config.wd is not None:
@@ -194,7 +194,7 @@ class Trainer():
 		if config.add_act:
 			now+=1
 			act_losses = outs[now::skip][:len(self.models)]
-		
+
 
 		"""
 		if config.add_act:
@@ -213,6 +213,6 @@ class Trainer():
 		learning_rate = outs[-1]
 		return loss, wd, rpn_label_losses, rpn_box_losses, fastrcnn_label_losses, fastrcnn_box_losses, so_label_losses, act_losses, learning_rate
 
-	
+
 
 

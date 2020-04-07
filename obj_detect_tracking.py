@@ -14,11 +14,11 @@ import threading
 import operator
 import os
 import pickle
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
 # remove all the annoying warnings from tf v1.10 to v1.13
 import logging
-logging.getLogger('tensorflow').disabled = True
+logging.getLogger("tensorflow").disabled = True
 
 from tqdm import tqdm
 
@@ -50,6 +50,7 @@ from class_ids import targetClass2id_new_nopo
 from class_ids import coco_obj_class_to_id
 from class_ids import coco_obj_id_to_class
 from class_ids import coco_obj_to_actev_obj
+from class_ids import coco_id_mapping
 
 targetClass2id = targetClass2id_new_nopo
 targetid2class = {targetClass2id[one]: one for one in targetClass2id}
@@ -93,7 +94,7 @@ def get_args():
   parser.add_argument("--gpu", default=1, type=int, help="number of gpu")
   parser.add_argument("--gpuid_start", default=0, type=int,
                       help="start of gpu id")
-  parser.add_argument('--im_batch_size', type=int, default=1)
+  parser.add_argument("--im_batch_size", type=int, default=1)
   parser.add_argument("--use_all_mem", action="store_true")
 
   # --- for internal visualization
@@ -181,6 +182,14 @@ def get_args():
                       help="use attention to sum [K, 7, 7, C] feature into"
                            " [K, C]")
 
+  # ------ 04/2020, efficientdet
+  parser.add_argument("--is_efficientdet", action="store_true")
+  parser.add_argument("--efficientdet_modelname", default="efficientdet-d0")
+  parser.add_argument("--efficientdet_max_detection_topk", type=int,
+                      default=5000, help="#topk boxes before NMS")
+  parser.add_argument("--efficientdet_min_level", type=int, default=3)
+  parser.add_argument("--efficientdet_max_level", type=int, default=7)
+
   # ---- COCO Mask-RCNN model
   parser.add_argument("--add_mask", action="store_true")
 
@@ -265,6 +274,13 @@ def get_args():
                         for i, classname in enumerate(partial_classes)}
       targetid2class = {targetClass2id[o]: o for o in targetClass2id}
 
+  # ---- 04/2020, efficientdet
+  if args.is_efficientdet:
+    targetClass2id = coco_obj_class_to_id
+    targetid2class = coco_obj_id_to_class
+    args.num_class = 81
+    args.is_coco_model = True
+
   # ---------------more defautls
   args.is_pack_model = False
   args.diva_class3 = True
@@ -297,6 +313,11 @@ def get_args():
   # [3] is 32, since we build FPN with r2,3,4,5, so 2**5
   args.fpn_resolution_requirement = float(args.anchor_strides[3])
 
+  if args.is_efficientdet:
+    args.fpn_resolution_requirement = 128.0  # 2 ** max_level
+    args.short_edge_size = np.ceil(
+        args.short_edge_size / args.fpn_resolution_requirement) * \
+            args.fpn_resolution_requirement
   args.max_size = np.ceil(args.max_size / args.fpn_resolution_requirement) * \
                   args.fpn_resolution_requirement
 
@@ -334,7 +355,7 @@ def get_args():
 
   # fastrcnn
   args.fastrcnn_batch_per_im = args.frcnn_batch_size
-  args.fastrcnn_bbox_reg_weights = np.array([10, 10, 5, 5], dtype='float32')
+  args.fastrcnn_bbox_reg_weights = np.array([10, 10, 5, 5], dtype="float32")
 
   args.fastrcnn_fg_thres = 0.5  # iou thres
   # args.fastrcnn_fg_ratio = 0.25 # 1:3 -> pos:neg
@@ -519,7 +540,7 @@ if __name__ == "__main__":
 
       # initialize tracking module
       if args.get_tracking:
-        tracking_objs = args.tracking_objs.split(',')
+        tracking_objs = args.tracking_objs.split(",")
         tracker_dict = {}
         tracking_results_dict = {}
         tmp_tracking_results_dict = {}
@@ -607,6 +628,17 @@ if __name__ == "__main__":
                           model.final_probs, model.fpn_box_feat]
             final_boxes, final_labels, final_probs, box_feats = sess.run(
                 sess_input, feed_dict=feed_dict)
+            if args.is_efficientdet:
+              # the output here is 1 - num_partial_classes
+              if args.use_partial_classes:
+                for i in range(len(final_labels)):
+                  final_labels[i] = coco_obj_class_to_id[
+                      args.partial_classes[final_labels[i] - 1]]
+              else:
+                # 1-90 to 1-80
+                for i in range(len(final_labels)):
+                  final_labels[i] = \
+                      coco_obj_class_to_id[coco_id_mapping[final_labels[i]]]
 
           assert len(box_feats) == len(final_boxes)
 
@@ -690,7 +722,7 @@ if __name__ == "__main__":
           box[2] -= box[0]
           box[3] -= box[1]  # produce x,y,w,h output
 
-          cat_id = label
+          cat_id = int(label)
           cat_name = targetid2class[cat_id]
 
           # encode mask
@@ -740,7 +772,6 @@ if __name__ == "__main__":
           vis_file = os.path.join(vis_path,
                                   "%s_F_%08d.jpg" % (videoname, vis_count))
           cv2.imwrite(vis_file, newim)
-          vis_count += 1
 
         cur_frame += 1
 
@@ -763,11 +794,11 @@ if __name__ == "__main__":
           tracking_data = linear_inter_bbox(tracking_data, args.frame_gap)
           tracking_data = filter_short_objs(tracking_data)
           tracking_results = tracking_data.tolist()
-          with open(output_file, 'wb') as fw:
+          with open(output_file, "w") as fw:
             for row in tracking_results:
-              line = '%d,%d,%.2f,%.2f,%.2f,%.2f,1,-1,-1,-1' % (
+              line = "%d,%d,%.2f,%.2f,%.2f,%.2f,1,-1,-1,-1" % (
                   row[0], row[1], row[2], row[3], row[4], row[5])
-              fw.write(line + '\n')
+              fw.write(line + "\n")
 
       if args.test_frame_extraction:
         tqdm.write(

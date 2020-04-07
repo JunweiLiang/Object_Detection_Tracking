@@ -1174,7 +1174,7 @@ def sample_fast_rcnn_targets(boxes, gt_boxes, gt_labels, config, fg_ratio=None):
 def get_so_labels(boxes, gt_boxes, gt_labels, config):
 
   box_labels = []
-  for i in xrange(len(config.small_objects)):
+  for i in range(len(config.small_objects)):
     iou = pairwise_iou(boxes[i], gt_boxes[i])
     #print(iou.get_shape()  # [1536,0] # gt_boxes could be empty
 
@@ -1277,6 +1277,34 @@ def crop_and_resize(image, boxes, box_ind, crop_size, pad_border=False):
   ret = tf.transpose(ret, [0, 3, 1, 2])   # Ncss
   return ret
 
+def crop_and_resize_nhwc(image, boxes, box_ind, crop_size):
+  # image feature [1,FS,FS,C]
+  # boxes [N,4]
+  # box_ind [N] all zero?
+  # return [N,crop_size,crop_size,C]
+  def transform_fpcoor_for_tf(boxes, image_shape, crop_shape):
+
+    x0, y0, x1, y1 = tf.split(boxes, 4, axis=1)
+
+    spacing_w = (x1 - x0) / tf.to_float(crop_shape[1])
+    spacing_h = (y1 - y0) / tf.to_float(crop_shape[0])
+
+    nx0 = (x0 + spacing_w / 2 - 0.5) / tf.to_float(image_shape[1] - 1)
+    ny0 = (y0 + spacing_h / 2 - 0.5) / tf.to_float(image_shape[0] - 1)
+
+    nw = spacing_w * tf.to_float(crop_shape[1] - 1) / \
+        tf.to_float(image_shape[1] - 1)
+    nh = spacing_h * tf.to_float(crop_shape[0] - 1) / \
+        tf.to_float(image_shape[0] - 1)
+
+    return tf.concat([ny0, nx0, ny0 + nh, nx0 + nw], axis=1)
+
+  image_shape = tf.shape(image)[1:3]
+  boxes = transform_fpcoor_for_tf(boxes, image_shape, [crop_size, crop_size])
+  ret = tf.image.crop_and_resize(
+      image, boxes, box_ind,
+      crop_size=[crop_size, crop_size])
+  return ret
 
 # given [1,C,FS,FS] featuremap, and the boxes [K,4], where coordiates are in FS
 # get fixed size feature for each box [K,C,output_shape,output_shape]

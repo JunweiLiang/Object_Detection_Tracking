@@ -46,6 +46,8 @@ from nn import add_wd
 #from nn import get_so_labels
 from nn import group_norm
 
+from efficientdet_wrapper import EfficientDet
+from efficientdet_wrapper import EfficientDet_frozen
 
 # need this otherwise No TRTEngineOp when load a trt graph # no use,
 #TensorRT doesn"t support FPN ops yet
@@ -94,12 +96,18 @@ def get_model(config, gpuid=0, task=0, controller="/cpu:0"):
   with tf.device(assign_to_device("/gpu:%s"%(gpuid), controller)):
     # load from frozen model
     if config.is_load_from_pb:
-      model = Mask_RCNN_FPN_frozen(config.load_from, gpuid,
-                                   add_mask=config.add_mask)
+      if config.is_efficientdet:
+        model = EfficientDet_frozen(config, config.load_from, gpuid)
+      else:
+        model = Mask_RCNN_FPN_frozen(config.load_from, gpuid,
+                                     add_mask=config.add_mask)
     else:
       with tf.variable_scope(tf.get_variable_scope(), reuse=tf.AUTO_REUSE):
         #tf.get_variable_scope().reuse_variables()
-        model = Mask_RCNN_FPN(config, gpuid=gpuid)
+        if config.is_efficientdet:
+          model = EfficientDet(config)
+        else:
+          model = Mask_RCNN_FPN(config, gpuid=gpuid)
 
   return model
 
@@ -117,14 +125,39 @@ def get_model_feat(config, gpuid=0, task=0, controller="/cpu:0"):
 # updated 05/29, pack model
 # simple tf frozen graph or TensorRT optimized model
 def pack(config):
+
+  # the graph var names to be saved
+  if config.is_efficientdet:
+    vars_ = [
+        "cls_outputs_all_after_topk",
+        "box_outputs_all_after_topk",
+        "indices_all",
+        "classes_all",
+        "level_index_all_after_topk",
+        "scale"]
+    for lvl in range(
+        config.efficientdet_min_level, config.efficientdet_max_level + 1):
+      vars_.append("fpn_feats_lvl%s" % lvl)
+  else:
+    vars_ = [
+        "final_boxes",
+        "final_labels",
+        "final_probs",
+        "fpn_box_feat"]
+    if config.add_mask:
+      vars_ = [
+          "final_boxes",
+          "final_labels",
+          "final_probs",
+          "final_masks",
+          "fpn_box_feat"]
+
   model = get_model(config)
   tfconfig = tf.ConfigProto(allow_soft_placement=True)
   tfconfig.gpu_options.allow_growth = True
   with tf.Session(config=tfconfig) as sess:
 
     initialize(load=True, load_best=config.load_best, config=config, sess=sess)
-
-    global_step = model.global_step
 
     # also save all the model config and note into the model
     assert config.note != "", "please add some note for the model"
@@ -146,18 +179,7 @@ def pack(config):
     #print [n.name for n in input_graph_def.node]
     # We use a built-in TF helper to export variables to constants
     # output node names
-    vars_ = [
-        "final_boxes",
-        "final_labels",
-        "final_probs",
-        "fpn_box_feat"]
-    if config.add_mask:
-      vars_ = [
-          "final_boxes",
-          "final_labels",
-          "final_probs",
-          "final_masks",
-          "fpn_box_feat"]
+
     output_graph_def = tf.graph_util.convert_variables_to_constants(
         sess, # The session is used to retrieve the weights
         input_graph_def, # The graph_def is used to retrieve the nodes
@@ -171,6 +193,9 @@ def pack(config):
 
     print("model saved in %s, config record is in %s" % (
         config.pack_model_path, config.pack_modelconfig_path))
+
+
+
 
 # load the weights at init time
 # this class has the same interface as Mask_RCNN_FPN
@@ -245,7 +270,7 @@ class Mask_RCNN_FPN():
     self.anchor_labels = []
     self.anchor_boxes = []
     num_anchors = len(config.anchor_ratios)
-    for k in xrange(len(config.anchor_strides)):
+    for k in range(len(config.anchor_strides)):
       self.anchor_labels.append(
           tf.placeholder(tf.int32, [None, None, num_anchors],
                          name="anchor_labels_lvl%s" % (k+2)))
@@ -258,7 +283,7 @@ class Mask_RCNN_FPN():
 
     self.so_gt_boxes = []
     self.so_gt_labels = []
-    for i in xrange(len(config.small_objects)):
+    for i in range(len(config.small_objects)):
       self.so_gt_boxes.append(
           tf.placeholder(tf.float32, [None, 4], name="so_gt_boxes_c%s" % (i+1)))
       self.so_gt_labels.append(
@@ -367,7 +392,7 @@ class Mask_RCNN_FPN():
     all_scores = []
     fpn_nms_topk = config.rpn_train_post_nms_topk \
         if config.is_train else config.rpn_test_post_nms_topk
-    for lvl in xrange(num_lvl):
+    for lvl in range(num_lvl):
       with tf.name_scope("Lvl%s"%(lvl+2)):
         anchors = multilevel_anchors[lvl]
         pred_boxes_decoded = decode_bbox_target(
@@ -411,8 +436,8 @@ class Mask_RCNN_FPN():
 
     level_ids = [tf.reshape(x, [-1], name="roi_level%s_id" % (i + 2))
                  for i, x in enumerate(level_ids)]
-    num_in_levels = [tf.size(x, name="num_roi_level%s" % (i + 2))
-                     for i, x in enumerate(level_ids)]
+    #num_in_levels = [tf.size(x, name="num_roi_level%s" % (i + 2))
+    #                 for i, x in enumerate(level_ids)]
 
     level_boxes = [tf.gather(boxes, ids) for ids in level_ids]
     return level_ids, level_boxes
@@ -441,45 +466,6 @@ class Mask_RCNN_FPN():
     all_rois = tf.gather(all_rois, level_id_invert_perm)
     return all_rois
 
-  def cascade_rcnn_head(self, boxes, stage, p23456):
-    config = self.config
-    if config.is_train:
-      boxes, labels_per_box, fg_inds_wrt_gt = boxes
-    reg_weight = config.cascade_bbox_reg[stage]
-    reg_weight = tf.constant(reg_weight, dtype=tf.float32)
-
-    pool_feat = self.multilevel_roi_align(p23456[:4], boxes, 7)
-    # [N,C,7,7]
-    pool_feat = self.scale_gradient_func(pool_feat)
-
-    #box_logits -> [N,1,4]
-    # label -> [N, num_class]
-    label_logits, box_logits = self.fastrcnn_2fc_head_class_agnostic(
-        pool_feat, config.num_class, boxes=boxes)
-
-    refined_boxes = decode_bbox_target(
-        tf.reshape(box_logits, [-1,4]) / reg_weight, boxes)
-    refined_boxes = clip_boxes(refined_boxes, tf.shape(self.p_image)[2:])
-
-    # [N], [N,4]
-    return label_logits, box_logits, tf.stop_gradient(refined_boxes)
-
-
-  def match_box_with_gt(self, boxes, iou_threshold):
-    config = self.config
-    gt_boxes = self.gt_boxes
-    if config.is_train:
-      with tf.name_scope("match_box_with_gt_%s"%(iou_threshold)):
-        iou = pairwise_iou(boxes, gt_boxes)# NxM
-        max_iou_per_box = tf.reduce_max(iou, axis=1)  # N
-        best_iou_ind = tf.argmax(iou, axis=1)  # N
-        labels_per_box = tf.gather(self.gt_labels, best_iou_ind)
-        fg_mask = max_iou_per_box >= iou_threshold
-        fg_inds_wrt_gt = tf.boolean_mask(best_iou_ind, fg_mask)
-        labels_per_box = tf.stop_gradient(labels_per_box * tf.to_int64(fg_mask))
-        return (boxes, labels_per_box, fg_inds_wrt_gt)
-    else:
-      return boxes
 
   def build_forward(self):
     config = self.config
@@ -667,7 +653,7 @@ class Mask_RCNN_FPN():
         with tf.variable_scope("small_objects"):
           so_label_logits = [] # each class a head
 
-          for i in xrange(len(config.small_objects)):
+          for i in range(len(config.small_objects)):
             if config.use_so_association:
               asso_hidden = hidden[i] + person_object_relation(
                   hidden[i], self.so_boxes[i], ref_boxes, ref_feat,
@@ -867,7 +853,7 @@ class Mask_RCNN_FPN():
         # BG is ignore anyway
         new_label_logits.append(
             tf.reduce_mean(so_label_logits[:, :, 0], axis=0)) # [K]
-        for i in xrange(len(config.small_objects)):
+        for i in range(len(config.small_objects)):
           new_label_logits.append(so_label_logits[i, :, 1])
         # [K, C+1]
         so_label_logits = tf.stack(new_label_logits, axis=1)
@@ -963,7 +949,6 @@ class Mask_RCNN_FPN():
       self.final_labels = final_labels
       # add a name so the frozen graph will have that name
       self.final_probs = tf.identity(final_probs, name="final_probs")
-
 
       # [R, 256, 7, 7]
       fpn_box_feat = self.multilevel_roi_align(p23456[:4], final_boxes, 7)
@@ -1107,7 +1092,7 @@ class Mask_RCNN_FPN():
 
   def conv_frcnn_head(self, feature, fc_dim, conv_dim, num_conv, use_gn=False):
     l = feature
-    for k in xrange(num_conv):
+    for k in range(num_conv):
       l = conv2d(
           l, conv_dim, kernel=3, activation=tf.nn.relu,
           data_format="NCHW",
@@ -1174,7 +1159,7 @@ class Mask_RCNN_FPN():
     num_conv = 4 # C4 model this is 0
     l = feature
     with tf.variable_scope(scope):
-      for k in xrange(num_conv):
+      for k in range(num_conv):
         l = conv2d(
             l, config.mrcnn_head_dim, kernel=3, activation=tf.nn.relu,
             data_format="NCHW",
@@ -1336,7 +1321,7 @@ class Mask_RCNN_FPN():
 
     losses = []
     with tf.variable_scope(scope):
-      for lvl in xrange(num_lvl):
+      for lvl in range(num_lvl):
         anchors = multilevel_anchors[lvl]
         gt_labels = sliced_anchor_labels[lvl]
         gt_boxes = sliced_anchor_boxes[lvl]
@@ -1606,16 +1591,16 @@ class Mask_RCNN_FPN():
       feed_dict[self.gt_labels] = labels
 
       if config.use_small_object_head:
-        for si in xrange(len(config.small_objects)):
+        for si in range(len(config.small_objects)):
           # the class id in the all classes
           small_object_class_id = config.classname2id[config.small_objects[si]]
           # the box ids
-          so_ids = [i for i in xrange(len(labels))
+          so_ids = [i for i in range(len(labels))
                     if labels[i] == small_object_class_id]
           # small object label id is different
           # so_label is 0/1, so should be all 1s
           feed_dict[self.so_gt_boxes[si]] = boxes[so_ids, :] # could be empty
-          feed_dict[self.so_gt_labels[si]] = [1 for i in xrange(len(so_ids))]
+          feed_dict[self.so_gt_labels[si]] = [1 for i in range(len(so_ids))]
     else:
 
       pass

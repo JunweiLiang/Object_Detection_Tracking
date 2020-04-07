@@ -357,6 +357,13 @@ def get_args():
   # forward with frozen gragp
   parser.add_argument("--is_load_from_pb", action="store_true")
 
+  # for efficientdet
+  parser.add_argument("--is_efficientdet", action="store_true")
+  parser.add_argument("--efficientdet_modelname", default="efficientdet-d0")
+  parser.add_argument("--efficientdet_max_detection_topk", type=int,
+                      default=5000, help="#topk boxes before NMS")
+  parser.add_argument("--efficientdet_min_level", type=int, default=3)
+  parser.add_argument("--efficientdet_max_level", type=int, default=7)
 
   # ------------------------------------ model specifics
 
@@ -600,12 +607,18 @@ def get_args():
     # [3] is 32, since there is a total pixel reduce of 2x2x2x2x2
     args.fpn_resolution_requirement = float(args.anchor_strides[3])
 
+    if args.is_efficientdet:
+      args.fpn_resolution_requirement = 128.0  # 2 ** max_level
+      args.short_edge_size = np.ceil(
+          args.short_edge_size / args.fpn_resolution_requirement) * \
+              args.fpn_resolution_requirement
     args.max_size = np.ceil(args.max_size / args.fpn_resolution_requirement) \
         * args.fpn_resolution_requirement
 
     #args.fpn_num_channel = 256
 
     #args.fpn_frcnn_fc_head_dim = 1024
+
 
   if args.load_best:
     args.load = True
@@ -848,7 +861,7 @@ def read_data_diva(config, idlst, framepath, annopath, tococo=False,
     assert anno["boxes"].dtype == np.float32
 
     if config.oversample_so_img and is_train and not no_so_box:
-      for i in xrange(config.oversample_x):
+      for i in range(config.oversample_x):
         data["imgs"].append(os.path.join(framepath, videoname, "%s.jpg"%img))
         data["gt"].append(anno)
 
@@ -1144,7 +1157,7 @@ def train_diva(config):
     loss_me, wd_me, rpn_label_loss_me, rpn_box_loss_me, \
         fastrcnn_label_loss_me, fastrcnn_box_loss_me, so_label_loss_me, \
             act_loss_me, lr_me = \
-                [FIFO_ME(config.loss_me_step) for i in xrange(9)]
+                [FIFO_ME(config.loss_me_step) for i in range(9)]
     for batch in tqdm(train_data.get_batches(
         config.im_batch_size, num_batches=num_steps),
                       total=num_steps, ascii=True, smoothing=1):
@@ -1209,7 +1222,7 @@ def train_diva(config):
             outputs = tester.step(sess, val_batch_)
 
             # post process this batch, also remember the ground truth
-            for i in xrange(this_batch_num): # num gpu
+            for i in range(this_batch_num): # num gpu
               imgid = imgids[i]
               scale = scales[i]
               if config.add_act:
@@ -1265,7 +1278,7 @@ def train_diva(config):
                 anno = val_batch.data["gt"][0] # one val_batch is single image
                 small_object_classids = [targetClass2id[one]
                                          for one in config.small_objects]
-                idxs = [i for i in xrange(len(anno["labels"]))
+                idxs = [i for i in range(len(anno["labels"]))
                         if anno["labels"][i] in small_object_classids]
                 gt_so_boxes = [anno["boxes"][i] for i in idxs]
                 # convert the original classid to the small object class id
@@ -1532,7 +1545,7 @@ def forward(config):
       os.makedirs(config.so_outpath)
 
   models = []
-  for i in xrange(config.gpuid_start, config.gpuid_start+config.gpu):
+  for i in range(config.gpuid_start, config.gpuid_start+config.gpu):
     models.append(get_model(config, i, controller=config.controller))
 
   model_final_boxes = [model.final_boxes for model in models]
@@ -1704,7 +1717,7 @@ def forward(config):
             pn = 5
           elif config.use_small_object_head:
             pn = 6
-      outputs = [outputs[i*pn:(i*pn+pn)] for i in xrange(len(images))]
+      outputs = [outputs[i*pn:(i*pn+pn)] for i in range(len(images))]
 
       for i, output in enumerate(outputs):
         scale = scales[i]
@@ -1791,7 +1804,7 @@ def forward(config):
 
               # use the final boxes, select the best cat for each box
               final_boxes2 = np.zeros([num_box, 4], dtype="float")
-              for i in xrange(num_box):
+              for i in range(num_box):
                 final_boxes2[i, :] = final_boxes[best_cat[i], i, :]
               final_boxes = final_boxes2
               final_probs = np.amax(final_probs, axis=0) # [K]
@@ -2045,7 +2058,7 @@ def test(config):
   print("total testing samples:%s" % test_data.num_examples)
 
   models = []
-  for i in xrange(config.gpuid_start, config.gpuid_start+config.gpu):
+  for i in range(config.gpuid_start, config.gpuid_start+config.gpu):
     models.append(get_model(config, i, controller=config.controller))
   tester = Tester(models, config, add_mask=config.add_mask)
 
@@ -2131,7 +2144,7 @@ def test(config):
 
 
           dm, gm = match_detection(
-              d, g, cocomask.iou(d, g, [0 for _ in xrange(len(g))]),
+              d, g, cocomask.iou(d, g, [0 for _ in range(len(g))]),
               iou_thres=0.5)
 
           e[imageid][cat_id]["dscores"] = dscores
