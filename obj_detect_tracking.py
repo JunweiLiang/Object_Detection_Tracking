@@ -739,7 +739,7 @@ if __name__ == "__main__":
             rle["counts"] = rle["counts"].decode("ascii")
 
           res = {
-              "category_id": cat_id,
+              "category_id": int(cat_id),
               "cat_name": cat_name,  # [0-80]
               "score": float(round(prob, 7)),
               #"bbox": list(map(lambda x: float(round(x, 2)), box)),
