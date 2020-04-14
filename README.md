@@ -66,44 +66,27 @@ $ wget https://aladdin-eax.inf.cs.cmu.edu/shares/diva_obj_detect_models/models/o
 $ tar -zxvf obj_v3_model.tgz
 ```
 
-2. Run object detection on the test videos
-```
-$ python obj_detect.py --model_path obj_v3_model --version 3 --video_dir v1-val_testvideos \
---video_lst_file v1-val_testvideos.lst --out_dir test_json_out --frame_gap 1 --visualize \
---vis_path test_vis_out --get_box_feat --box_feat_path test_box_feat_out
-```
-The object detection output for each frame will be in `test_json_out/` and in COCO format. The visualization frames will be in `test_vis_out/`. The ROI features will be in `test_box_feat_out/`. Remove `--visualize  --vis_path test_vis_out` and `--get_box_feat --box_feat_path test_box_feat_out` if you only want the json files.
-
-3. Run object detection & tracking on the test videos
+2. Run object detection & tracking on the test videos
 ```
 $ python obj_detect_tracking.py --model_path obj_v3_model --version 3 --video_dir v1-val_testvideos \
---video_lst_file v1-val_testvideos.lst --out_dir test_json_out --frame_gap 1 --get_tracking \
+--video_lst_file v1-val_testvideos.lst --frame_gap 1 --get_tracking \
 --tracking_dir test_track_out
 ```
+To have the object detection output in COCO json format, add `--out_dir test_json_out `; To have the bounding box visualization, add `--visualize  --vis_path test_vis_out`.
+To speed it up, try `--frame_gap 8`, and the tracks between detection frames will be linearly interpolated.
 The tracking results will be in `test_track_out/` and in MOTChallenge format. To visualize the tracking results:
 ```
-$ ls $PWD/v1-val_testvideos/* > v1-val_testvideos.abs.lst
-$ python get_frames_resize.py v1-val_testvideos.abs.lst v1-val_testvideos_frames/ --use_2level
-$ cd test_track_out/VIRAT_S_000205_05_001092_001124.mp4
-$ ls Person > Person.lst; ls Vehicle > Vehicle.lst
-$ python ../../track_to_json.py Vehicle Vehicle.lst Vehicle Vehicle_json
-$ python ../../track_to_json.py Person Person.lst Person Person_json
-$ python ../../vis_json.py Person.lst ../../v1-val_testvideos_frames/ Person_json/ Person_vis
-$ python ../../vis_json.py Vehicle.lst ../../v1-val_testvideos_frames/ Vehicle_json/ Vehicle_vis
-$ ffmpeg -framerate 30 -i Vehicle_vis/VIRAT_S_000205_05_001092_001124/VIRAT_S_000205_05_001092_001124_F_%08d.jpg Vehicle_vis_video.mp4
-$ ffmpeg -framerate 30 -i Person_vis/VIRAT_S_000205_05_001092_001124/VIRAT_S_000205_05_001092_001124_F_%08d.jpg Person_vis_video.mp4
-
-# or you could put "Person/Vehicle" visualization into the same video
+# Put "Person/Vehicle" tracks visualization into the same video
 $ ls $PWD/v1-val_testvideos/* > v1-val_testvideos.abs.lst
 $ python get_frames_resize.py v1-val_testvideos.abs.lst v1-val_testvideos_frames/ --use_2level
 $ python tracks_to_json.py test_track_out/ v1-val_testvideos.abs.lst test_track_out_json
 $ python vis_json.py v1-val_testvideos.abs.lst v1-val_testvideos_frames/ test_track_out_json/ test_track_out_vis
 # then use ffmpeg to make videos
-
+$ ffmpeg -framerate 30 -i test_track_out_vis/VIRAT_S_000205_05_001092_001124/VIRAT_S_000205_05_001092_001124_F_%08d.jpg vis_video.mp4
 ```
 Now you have the tracking visualization videos for both "Person" and "Vehicle" class.
 
-4. You can also run both inferencing with frozen graph (See [this](SPEED.md) for instructions of how to pack the model). Change `--model_path obj_v3.pb` and add `--is_load_from_pb`. It is about 30% faster.
+3. You can also run inferencing with frozen graph (See [this](SPEED.md) for instructions of how to pack the model). Change `--model_path obj_v3.pb` and add `--is_load_from_pb`. It is about 30% faster. For running on [MEVA](http://mevadata.org/) dataset (avi videos & indoor scenes) or with [EfficientDet](https://github.com/google/automl/tree/master/efficientdet) models, see examples [here](COMMANDS.md).
 
 ## Models
 These are the models you can use for inferencing. The original ActEv annotations can be downloaded from [here](https://next.cs.cmu.edu/data/actev-v1-drop4-yaml.tgz). I will add instruction for training and testing if requested. Click to download each model.

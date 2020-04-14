@@ -44,7 +44,8 @@ if __name__ == "__main__":
 
 				box = [float(left), float(top), float(width), float(height)]
 
-				if not data.has_key(frameIdx):
+				#if not data.has_key(frameIdx):
+				if not frameIdx in data:
 					data[frameIdx] = []
 				data[frameIdx].append({
 					"category_id": targetClass2id[cat_name],
@@ -56,7 +57,7 @@ if __name__ == "__main__":
 				})
 
 		for frameIndex in data:
-			
+
 			annofile = os.path.join(args.despath, "%s_F_%08d.json"%(os.path.splitext(videoname)[0], frameIndex))
 
 			with open(annofile, "w") as f:

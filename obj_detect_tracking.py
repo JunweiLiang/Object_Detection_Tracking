@@ -777,6 +777,7 @@ if __name__ == "__main__":
           vis_file = os.path.join(vis_path,
                                   "%s_F_%08d.jpg" % (videoname, vis_count))
           cv2.imwrite(vis_file, newim)
+          vis_count += 1
 
         cur_frame += 1
 

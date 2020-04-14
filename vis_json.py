@@ -251,11 +251,13 @@ if __name__ == "__main__":
           box = one['bbox'] # [x, y, w, h]
           box = [box[0], box[1], box[0] + box[2], box[1] + box[3]]
           boxes.append(box)
-          if one.has_key("trackId"):
+          #if one.has_key("trackId"):
+          if "trackId" not in one:
             trackId = int(one['trackId'])
             color_key = (trackId, one['cat_name'])
             labels.append("%s: #%s"%(one['cat_name'], trackId))
-            if not color_assign.has_key(color_key):
+            #if not color_assign.has_key(color_key):
+            if color_key not in color_assign:
               this_color = color_queue.pop()
               color_assign[color_key] = this_color
               # recycle it
@@ -266,7 +268,8 @@ if __name__ == "__main__":
             # no trackId, just visualize the boxes
             cat_name = one['cat_name']
             labels.append("%s: %.2f"%(cat_name, float(one['score'])))
-            if not color_assign.has_key(cat_name):
+            #if not color_assign.has_key(cat_name):
+            if cat_name not in color_assign:
               this_color = color_queue.pop()
               color_assign[cat_name] = this_color
               # recycle it
