@@ -170,6 +170,8 @@ def pack(config):
         config_json[k] = int(config_json[k])
       if type(config_json[k]) == type(np.array([1.0])[0]):
         config_json[k] = float(config_json[k])
+      if type(config_json[k]) == type({}.keys()):  # python3 dict_keys
+        config_json[k] = list(config_json[k])
     with open(config.pack_modelconfig_path, "w") as f:
       json.dump(config_json, f)
 
@@ -1088,7 +1090,6 @@ class Mask_RCNN_FPN():
         box_regression.set_shape([None, num_class-1, 4])
 
     return classification, box_regression
-
 
   def conv_frcnn_head(self, feature, fc_dim, conv_dim, num_conv, use_gn=False):
     l = feature
@@ -2020,8 +2021,10 @@ def initialize(load,load_best,config,sess):
           # load from dict
           weights = np.load(load_from)
           params = {get_op_tensor_name(n)[1]:v
-                    for n, v in dict(weights).iteritems()}
-          param_names = set(params.iterkeys())
+                    #for n, v in dict(weights).iteritems()}
+                    for n, v in dict(weights).items()}
+          #param_names = set(params.iterkeys())
+          param_names = set(params.keys())
 
           #variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
 

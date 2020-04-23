@@ -94,6 +94,11 @@ def get_args():
   parser.add_argument("--version", type=int, default=4, help="model version")
   parser.add_argument("--is_coco_model", action="store_true",
                       help="is coco model, will output coco classes instead")
+  parser.add_argument("--use_gn", action="store_true",
+                      help="it is group norm model")
+  parser.add_argument("--use_conv_frcnn_head", action="store_true",
+                      help="group norm model from tensorpack uses conv head")
+
 
   # ---- gpu params
   parser.add_argument("--gpu", default=1, type=int, help="number of gpu")
@@ -294,9 +299,9 @@ def get_args():
   args.use_small_object_head = False
   args.use_so_score_thres = False
   args.use_so_association = False
-  args.use_gn = False
+  #args.use_gn = False
+  #args.use_conv_frcnn_head = False
   args.so_person_topk = 10
-  args.use_conv_frcnn_head = False
   args.use_cpu_nms = False
   args.use_bg_score = False
   args.freeze_rpn = True
