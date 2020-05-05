@@ -40,7 +40,7 @@ $ python obj_detect_tracking.py \
 This is for processing AVI videos. For MP4 videos, run without `--use_lijun`.
 Add `--log_time_and_gpu` to get GPU utilization and time profile.
 
-Example command with a partial frozen graph \[[d0-TFv1.15](https://aladdin-eax.inf.cs.cmu.edu/shares/diva_obj_detect_models/models/efficientd0_tfv1.15_1280x720.pb)\]:
+Example command with a partial frozen graph \[[d0-TFv1.15](https://aladdin-eax.inf.cs.cmu.edu/shares/diva_obj_detect_models/models/efficientd0_tfv1.15_1280x720.pb)\] (slightly faster):
 ```
 $ python obj_detect_tracking.py \
  --model_path efficientd0_tfv1.15_1280x720.pb --is_load_from_pb \
@@ -54,7 +54,7 @@ $ python obj_detect_tracking.py \
  --max_cosine_distance 0.5 --nn_budget 5
 ```
 
-Run object detection and visualization on images:
+Run object detection and visualization on images. This could be used to reproduce the official repo's tutorial output:
 ```
 $ python obj_detect_imgs.py --model_path efficientdet-d0 \
 --efficientdet_modelname efficientdet-d0 --is_efficientdet \

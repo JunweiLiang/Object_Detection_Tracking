@@ -35,7 +35,7 @@ We utilize state-of-the-art object detection and tracking algorithm in surveilla
 </div>
 
 ## Updates
-+ [04/2020] Added [EfficientDet (CVPR 2020)](https://github.com/google/automl/tree/master/efficientdet) for inferencing. The D7 model is reported to be more than 12 mAP better than the Resnet-50 FPN model we used. Modified to be more efficient and tested with Python 2 & 3 and TF 1.15. See example commands and notes [here](COMMANDS.md).
++ [05/2020] Added [EfficientDet (CVPR 2020)](https://github.com/google/automl/tree/master/efficientdet) for inferencing. The D7 model is reported to be more than 12 mAP better than the Resnet-50 FPN model we used. Modified to be more efficient and tested with Python 2 & 3 and TF 1.15. See example commands and notes [here](COMMANDS.md).
 
 + [02/2020] We used Resnet-50 FPN model trained on MS-COCO for [MEVA](http://mevadata.org/) activity detection and got a competitive pAUDC of [0.49](images/inf_actev_0.49audc_02-2020.png) on the [leaderboard](https://actev.nist.gov/sdl) with a total processing speed of 0.64x real-time on a 4-GPU machine. The object detection module's processing speed is about 0.125x real-time. \[[Frozen Model](https://aladdin-eax.inf.cs.cmu.edu/shares/diva_obj_detect_models/models/obj_coco_resnet50_partial_tfv1.14_1280x720_rpn300.pb)\] \[[Example Command](COMMANDS.md)\]
 
@@ -76,7 +76,7 @@ To have the object detection output in COCO json format, add `--out_dir test_jso
 To speed it up, try `--frame_gap 8`, and the tracks between detection frames will be linearly interpolated.
 The tracking results will be in `test_track_out/` and in MOTChallenge format.
 
-To run with EfficientDet models, download checkpoint from the official [repo](https://github.com/google/automl/tree/master/efficientdet) or [my-d0-snapshot](https://aladdin-eax.inf.cs.cmu.edu/shares/diva_obj_detect_models/models/efficientdet-d0.tar.gz). Then run with `--is_efficientdet` and `--efficientdet_modelname efficientdet-d0`.
+To run with *EfficientDet* models, download checkpoint from the official [repo](https://github.com/google/automl/tree/master/efficientdet) or [my-d0-snapshot](https://aladdin-eax.inf.cs.cmu.edu/shares/diva_obj_detect_models/models/efficientdet-d0.tar.gz). Then run with `--is_efficientdet` and `--efficientdet_modelname efficientdet-d0`.
 
 To visualize the tracking results:
 ```
