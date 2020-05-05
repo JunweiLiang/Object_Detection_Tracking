@@ -19,7 +19,7 @@ Add `--log_time_and_gpu` to get GPU utilization and time profile.
 ## 05-2020, added EfficientDet
 The [EfficientDet (CVPR 2020)](https://github.com/google/automl/tree/master/efficientdet) (D7) is reported to be more than 12 mAP better than the Resnet-50 FPN model we used on COCO.
 
-I have made the following changes based on the code from early March:
+I have made the following changes based on the code from early May:
 + Added multi-level ROI align with the final detection boxes since we need the FPN box features for deep-SORT tracking. Basically since one-stage object detection models have box predictions at each feature level, I added a level index variable to keep track of each box's feature level so that in the end they can be efficiently backtracked to the original feature map and crop the features.
 + Similar to the MaskRCNN model, I modified the EfficientDet to allow NMS on only some of the COCO classes (currently we only care about person and vehicle) and save computations.
 
@@ -52,6 +52,17 @@ $ python obj_detect_tracking.py \
  --max_size 1280 --short_edge_size 720 \
  --use_lijun_video_loader --nms_max_overlap 0.85 --max_iou_distance 0.5 \
  --max_cosine_distance 0.5 --nn_budget 5
+```
+
+[05/04/2020] Tried to optimize the frozen model with TensorRT by:
+```
+$ python tensorrt_optimize_tf1.15.py efficientd0_tfv1.15_1280x720.pb \
+efficientd0_tfv1.15_1280x720_trt_fp16.pb --precision_mode FP16
+```
+But it does not work:
+```
+2020-05-04 22:11:48.850233: F tensorflow/core/framework/op_kernel.cc:875] Check failed: mutable_output(index) == nullptr (0x7f82d4244ff0 vs. nullptr)
+Aborted (core dumped)
 ```
 
 Run object detection and visualization on images. This could be used to reproduce the official repo's tutorial output:
