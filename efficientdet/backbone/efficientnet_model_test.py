@@ -189,7 +189,7 @@ class ModelTest(tf.test.TestCase):
     model = efficientnet_model.Model(blocks_args, global_params)
     _ = model(images, training=True)
     var_names = {var.name for var in model.variables}
-    self.assertIn('blocks_0/conv2d/kernel:0', var_names)
+    self.assertIn('model/blocks_0/conv2d/kernel:0', var_names)
 
   def test_reduction_endpoint_with_single_block_with_sp(self):
     """Test reduction point with single block/layer."""
@@ -252,5 +252,4 @@ class ModelTest(tf.test.TestCase):
     self.assertNotIn('reduction_2', model.endpoints)
 
 if __name__ == '__main__':
-  tf.disable_v2_behavior()
   tf.test.main()

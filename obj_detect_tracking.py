@@ -229,7 +229,7 @@ def get_args():
   args = parser.parse_args()
 
   if args.use_partial_classes:
-    assert args.is_coco_model
+    args.is_coco_model = True
     args.partial_classes = [classname for classname in coco_obj_to_actev_obj]
 
   assert args.gpu == args.im_batch_size  # one gpu one image
@@ -323,11 +323,11 @@ def get_args():
   # [3] is 32, since we build FPN with r2,3,4,5, so 2**5
   args.fpn_resolution_requirement = float(args.anchor_strides[3])
 
-  if args.is_efficientdet:
-    args.fpn_resolution_requirement = 128.0  # 2 ** max_level
-    args.short_edge_size = np.ceil(
-        args.short_edge_size / args.fpn_resolution_requirement) * \
-            args.fpn_resolution_requirement
+  #if args.is_efficientdet:
+  #  args.fpn_resolution_requirement = 128.0  # 2 ** max_level
+  #  args.short_edge_size = np.ceil(
+  #      args.short_edge_size / args.fpn_resolution_requirement) * \
+  #          args.fpn_resolution_requirement
   args.max_size = np.ceil(args.max_size / args.fpn_resolution_requirement) * \
                   args.fpn_resolution_requirement
 
@@ -602,8 +602,8 @@ if __name__ == "__main__":
         im = frame.astype("float32")
 
         if args.test_frame_extraction:
-          frame_file = os.path.join(video_out_path, "%d.jpg" % cur_frame)
-          cv2.imwrite(frame_file, im)
+          #frame_file = os.path.join(video_out_path, "%d.jpg" % cur_frame)
+          #cv2.imwrite(frame_file, im)
           cur_frame += 1
           continue
 

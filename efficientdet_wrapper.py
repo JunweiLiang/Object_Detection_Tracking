@@ -37,7 +37,8 @@ class EfficientDet():
 
   def build_preprocess(self, image):
     config = self.config
-    img_size = config.max_size
+    img_width = config.max_size
+    img_height = config.short_edge_size
 
     bgr = True  # cv2 load image is bgr
 
@@ -47,7 +48,7 @@ class EfficientDet():
       p_image = p_image[:, :, ::-1]
     #input_processor = dataloader.DetectionInputProcessor(p_image, img_size)
     input_processor = dataloader.DetectionInputProcessor(
-        p_image, img_size, config.short_edge_size)
+        p_image, (img_height, img_width))
     # make image [0,1] and -mean/var
     input_processor.normalize_image()
     input_processor.set_scale_factors_to_output_size()
@@ -68,7 +69,6 @@ class EfficientDet():
     # get all the parameters for the efficient_det
     eff_config = get_efficientdet_config(config)
     #print(image, config.max_size, config.short_edge_size)
-
     # 2 -> 5 level, [N, H, W, C]
     features = efficientdet_arch.build_backbone(image, eff_config)
     #print(features)
@@ -78,8 +78,8 @@ class EfficientDet():
     # d0 is 64
     #print(fpn_feats)
     # these are used for frozen graph
-    for lvl in range(eff_config.min_level, eff_config.max_level + 1):
-      fpn_feats[lvl] = tf.identity(fpn_feats[lvl], name="fpn_feats_lvl%s" % lvl)
+    #for lvl in range(eff_config.min_level, eff_config.max_level + 1):
+    #  fpn_feats[lvl] = tf.identity(fpn_feats[lvl], name="fpn_feats_lvl%s" % lvl)
 
     # 3 -> 7 level, [N, H, W, 810/36], 810 = 90 * 9(num_anchors), 36 = 4 * 9
     class_outputs, box_outputs = efficientdet_arch.build_class_and_box_outputs(
@@ -89,22 +89,7 @@ class EfficientDet():
         classes_all, level_index_all_after_topk = add_metric_fn_inputs(
             eff_config, class_outputs, box_outputs)
 
-    # these are used for frozen graph
-    cls_outputs_all_after_topk = tf.identity(
-        cls_outputs_all_after_topk, name="cls_outputs_all_after_topk")
-    box_outputs_all_after_topk = tf.identity(
-        box_outputs_all_after_topk, name="box_outputs_all_after_topk")
-    indices_all = tf.identity(
-        indices_all, name="indices_all")
-    classes_all = tf.identity(
-        classes_all, name="classes_all")
-    level_index_all_after_topk = tf.identity(
-        level_index_all_after_topk, name="level_index_all_after_topk")
-    scale = tf.identity(scale, name="scale")
-
-    # ---------------------- this part uses PyFunc
-    # -------------------- so we can only save everything before to .pb
-    boxes, scores, classes, fpn_box_feat = tf_py_func_part(
+    boxes, scores, classes, fpn_box_feat = get_results_tf(
         eff_config, fpn_feats,
         cls_outputs_all_after_topk,
         box_outputs_all_after_topk,
@@ -112,6 +97,7 @@ class EfficientDet():
         classes_all,
         level_index_all_after_topk,
         scale)
+
 
     return boxes, scores, classes, fpn_box_feat
 
@@ -149,38 +135,15 @@ class EfficientDet_frozen():
     self.image = self.graph.get_tensor_by_name("%s/image:0" % self.var_prefix)
 
     # intermedia output
-    fpn_feats = {}
-    for lvl in range(eff_config.min_level, eff_config.max_level + 1):
-      fpn_feats[lvl] = self.graph.get_tensor_by_name(
-          "%s/fpn_feats_lvl%s:0" % (self.var_prefix, lvl))
-    cls_outputs_all_after_topk = self.graph.get_tensor_by_name(
-        "%s/cls_outputs_all_after_topk:0" % self.var_prefix)
-    box_outputs_all_after_topk = self.graph.get_tensor_by_name(
-        "%s/box_outputs_all_after_topk:0" % self.var_prefix)
-    indices_all = self.graph.get_tensor_by_name(
-        "%s/indices_all:0" % self.var_prefix)
-    classes_all = self.graph.get_tensor_by_name(
-        "%s/classes_all:0" % self.var_prefix)
-    level_index_all_after_topk = self.graph.get_tensor_by_name(
-        "%s/level_index_all_after_topk:0" % self.var_prefix)
-    scale = self.graph.get_tensor_by_name(
-        "%s/scale:0" % self.var_prefix)
+    self.final_boxes = self.graph.get_tensor_by_name(
+        "%s/final_boxes:0" % self.var_prefix)
+    self.final_labels = self.graph.get_tensor_by_name(
+        "%s/final_labels:0" % self.var_prefix)
+    self.final_probs = self.graph.get_tensor_by_name(
+        "%s/final_probs:0" % self.var_prefix)
+    self.fpn_box_feat = self.graph.get_tensor_by_name(
+        "%s/fpn_box_feat:0" % self.var_prefix)
 
-    # repeat these pyfunc stuff as before
-    boxes, scores, classes, fpn_box_feat = tf_py_func_part(
-        eff_config, fpn_feats,
-        cls_outputs_all_after_topk,
-        box_outputs_all_after_topk,
-        indices_all,
-        classes_all,
-        level_index_all_after_topk,
-        scale)
-    # add a name so the frozen graph will have that name
-    self.final_boxes = tf.identity(boxes, name="final_boxes")
-    self.final_labels = tf.identity(classes, name="final_labels")  # [1-90]
-    self.final_probs = tf.identity(scores, name="final_probs")
-
-    self.fpn_box_feat = tf.identity(fpn_box_feat, name="fpn_box_feat")
 
   def get_feed_dict_forward(self, imgdata):
     feed_dict = {}
@@ -198,6 +161,8 @@ def get_efficientdet_config(config):
     def __getitem__(self, key):
       return self.__dict__[key]
   eff_config = my_namespace(
+      result_score_thres=config.result_score_thres,
+      result_per_im=config.result_per_im,
       batch_size=1,
       name=config.efficientdet_modelname,
       #image_size=640,
@@ -213,7 +178,7 @@ def get_efficientdet_config(config):
       num_scales=3,
       aspect_ratios=[(1.0, 1.0), (1.4, 0.7), (0.7, 1.4)],
       anchor_scale=4.0,
-      is_training_bn=True,
+      is_training_bn=False,
       # optimization
       #momentum=0.9,
       #learning_rate=0.08,
@@ -242,9 +207,14 @@ def get_efficientdet_config(config):
 
       fpn_name=None,
       fpn_config=None,
+      use_tpu=False,
+      data_format="channels_last",
 
       # No stochastic depth in default.
       survival_prob=None,
+      fpn_weight_method=None,
+      conv_bn_act_pattern=False,
+      act_type="swish",
 
       #lr_decay_method="cosine",
       #moving_average_decay=0.9998,
@@ -261,9 +231,10 @@ def get_efficientdet_config(config):
   eff_config.min_level = config.efficientdet_min_level
   eff_config.max_level = config.efficientdet_max_level
 
-  eff_config.image_size = config.max_size
+  #eff_config.image_size = config.max_size
+  eff_config.image_size = (int(config.short_edge_size), int(config.max_size))
   # needed in biFPN
-  eff_config.img_height = config.short_edge_size
+  #eff_config.img_height = config.short_edge_size
 
   # original code is 5000, the topk boxes before NMS
   eff_config.max_detection_topk = config.efficientdet_max_detection_topk
@@ -328,21 +299,20 @@ def multilevel_roi_align(fpn_feats, boxes, level_indexes, output_shape,
   return all_rois#, boxes_on_fp
 
 
-def tf_py_func_part(eff_config, fpn_feats,
-                    cls_outputs_all_after_topk,
-                    box_outputs_all_after_topk,
-                    indices_all,
-                    classes_all,
-                    level_index_all_after_topk,
-                    scale):
+def get_results_tf(eff_config, fpn_feats,
+                   cls_outputs_all_after_topk,
+                   box_outputs_all_after_topk,
+                   indices_all,
+                   classes_all,
+                   level_index_all_after_topk,
+                   scale):
   # Create anchor_label for picking top-k predictions.
   eval_anchors = anchors.Anchors(eff_config["min_level"],
                                  eff_config["max_level"],
                                  eff_config["num_scales"],
                                  eff_config["aspect_ratios"],
                                  eff_config["anchor_scale"],
-                                 eff_config["image_size"],
-                                 eff_config["img_height"])
+                                 eff_config["image_size"])
 
   num_classes = eff_config["num_classes"]
   if eff_config["partial_class_idxs"]:
@@ -364,14 +334,21 @@ def tf_py_func_part(eff_config, fpn_feats,
   # tf.py_func cannot be saved to .pb
   # [R, 7] [image_id, x, y, width, height, score, class]
   # now it is [R, 8], with last is level_index
-  detections = anchor_labeler.generate_detections(
-      cls_outputs_per_sample, box_outputs_per_sample, indices_per_sample,
-      classes_per_sample, image_id=[0], image_scale=[scale],
-      level_index=level_index_per_sample)
-
+  #detections = anchor_labeler.generate_detections(
+  #    cls_outputs_per_sample, box_outputs_per_sample, indices_per_sample,
+  #    classes_per_sample, image_id=[0], image_scale=[scale],
+  #    level_index=level_index_per_sample, use_tf=False)
   # [R, 8] [image_id, x, y, width, height, score, class, feature_level_index]
   # class index is 1-90, within which 80 classes have labels
-  boxes, scores, classes, level_indexes = detections
+  #boxes, scores, classes, level_indexes = detections
+
+  # tf version
+  boxes, scores, classes, level_indexes = anchor_labeler.generate_detections(
+      cls_outputs_per_sample, box_outputs_per_sample, indices_per_sample,
+      classes_per_sample, image_id=[0], image_scale=[scale],
+      level_index=level_index_per_sample, use_tf=True,
+      min_score_thresh=eff_config.result_score_thres,
+      max_boxes_to_draw=eff_config.result_per_im)
 
   # get the detection results and the ROI aligned features for each box
   # now they have shapes
@@ -408,12 +385,14 @@ def add_metric_fn_inputs(params, cls_outputs, box_outputs):
   for level in range(params["min_level"], params["max_level"] + 1):
     #print(cls_outputs[level])  # [1, H, W, 9* 90] # 9: num_anchors
     _, H, W, _ = cls_outputs[level].get_shape()
+
     level_index_all.append(tf.constant(
         level, shape=(params["batch_size"], H*W*num_anchors), dtype="uint8"))
     # [1, H*W*num_anchors, classes]
     this_cls_outputs = tf.reshape(
         cls_outputs[level],
         [params["batch_size"], -1, num_classes])
+
     if params["partial_class_idxs"]:  # a list of class idx [0 - 89]
       # [classes, batch, -1]
       this_cls_outputs = tf.transpose(this_cls_outputs, [2, 0, 1])
@@ -591,5 +570,16 @@ efficientdet_model_param_dict = {
             fpn_cell_repeats=8,
             box_class_repeats=5,
             fpn_name="bifpn_sum",  # Use unweighted sum for training stability.
+        ),
+    'efficientdet-d7':
+        dict(
+            name='efficientdet-d7',
+            backbone_name='efficientnet-b6',
+            image_size=1536,
+            fpn_num_filters=384,
+            fpn_cell_repeats=8,
+            box_class_repeats=5,
+            anchor_scale=5.0,
+            fpn_name='bifpn_sum',  # Use unweighted sum for training stability.
         ),
 }

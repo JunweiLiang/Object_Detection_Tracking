@@ -25,7 +25,7 @@ if __name__ == "__main__":
 
   max_batch_size = 1
   precision_mode = args.precision_mode
-  minimum_segment_size = 2
+  minimum_segment_size = 2  # smaller the faster? 5 -60?
   max_workspace_size_bytes = 1 << 32
   maximum_cached_engines = args.maximum_cached_engines
 

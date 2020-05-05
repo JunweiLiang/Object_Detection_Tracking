@@ -24,6 +24,7 @@ from __future__ import division
 from __future__ import print_function
 
 import collections
+import functools
 import math
 
 from absl import logging
@@ -135,7 +136,6 @@ def superpixel_kernel_initializer(shape, dtype='float32', partition_info=None):
 
 def round_filters(filters, global_params, skip=False):
   """Round number of filters based on depth multiplier."""
-  orig_f = filters
   multiplier = global_params.width_coefficient
   divisor = global_params.depth_divisor
   min_depth = global_params.min_depth
@@ -148,7 +148,6 @@ def round_filters(filters, global_params, skip=False):
   # Make sure that round down does not go down by more than 10%.
   if new_filters < 0.9 * filters:
     new_filters += divisor
-  logging.info('round_filter input=%s output=%s', orig_f, new_filters)
   return int(new_filters)
 
 
@@ -198,8 +197,9 @@ class MBConvBlock(tf.keras.layers.Layer):
 
     self.endpoints = None
 
-    self.conv_cls = tf.layers.Conv2D
-    self.depthwise_conv_cls = utils.DepthwiseConv2D
+    self.conv_cls = functools.partial(tf.keras.layers.Conv2D, name='conv2d')
+    self.depthwise_conv_cls = functools.partial(
+        tf.keras.layers.DepthwiseConv2D, name='depthwise_conv2d')
     if self._block_args.condconv:
       raise ValueError('Condconv is not supported.')
 
@@ -212,7 +212,7 @@ class MBConvBlock(tf.keras.layers.Layer):
   def _build(self):
     """Builds block according to the arguments."""
     if self._block_args.super_pixel == 1:
-      self._superpixel = tf.layers.Conv2D(
+      self._superpixel = self.conv_cls(
           self._block_args.input_filters,
           kernel_size=[2, 2],
           strides=[2, 2],
@@ -271,7 +271,7 @@ class MBConvBlock(tf.keras.layers.Layer):
       num_reduced_filters = max(
           1, int(self._block_args.input_filters * self._block_args.se_ratio))
       # Squeeze and Excitation layer.
-      self._se_reduce = tf.layers.Conv2D(
+      self._se_reduce = self.conv_cls(
           num_reduced_filters,
           kernel_size=[1, 1],
           strides=[1, 1],
@@ -279,7 +279,7 @@ class MBConvBlock(tf.keras.layers.Layer):
           padding='same',
           data_format=self._data_format,
           use_bias=True)
-      self._se_expand = tf.layers.Conv2D(
+      self._se_expand = self.conv_cls(
           filters,
           kernel_size=[1, 1],
           strides=[1, 1],
@@ -340,11 +340,7 @@ class MBConvBlock(tf.keras.layers.Layer):
     Returns:
       A output tensor.
     """
-    logging.info('Block input: %s shape: %s', inputs.name, inputs.shape)
-    logging.info('Block input depth: %s output depth: %s',
-                 self._block_args.input_filters,
-                 self._block_args.output_filters)
-
+    logging.info('Block %s  input shape: %s', self.name, inputs.shape)
     x = inputs
 
     fused_conv_fn = self._fused_conv
@@ -354,27 +350,26 @@ class MBConvBlock(tf.keras.layers.Layer):
 
     # creates conv 2x2 kernel
     if self._block_args.super_pixel == 1:
-      with tf.variable_scope('super_pixel'):
+      with tf.name_scope('super_pixel'):
         x = self._relu_fn(
             self._bnsp(self._superpixel(x), training=training))
-      logging.info(
-          'Block start with SuperPixel: %s shape: %s', x.name, x.shape)
+      logging.info('Block start with SuperPixel shape: %s', x.shape)
 
     if self._block_args.fused_conv:
       # If use fused mbconv, skip expansion and use regular conv.
       x = self._relu_fn(self._bn1(fused_conv_fn(x), training=training))
-      logging.info('Conv2D: %s shape: %s', x.name, x.shape)
+      logging.info('Conv2D shape: %s', x.shape)
     else:
       # Otherwise, first apply expansion and then apply depthwise conv.
       if self._block_args.expand_ratio != 1:
         x = self._relu_fn(self._bn0(expand_conv_fn(x), training=training))
-        logging.info('Expand: %s shape: %s', x.name, x.shape)
+        logging.info('Expand shape: %s', x.shape)
 
       x = self._relu_fn(self._bn1(depthwise_conv_fn(x), training=training))
-      logging.info('DWConv: %s shape: %s', x.name, x.shape)
+      logging.info('DWConv shape: %s', x.shape)
 
     if self._has_se:
-      with tf.variable_scope('se'):
+      with tf.name_scope('se'):
         x = self._call_se(x)
 
     self.endpoints = {'expansion_output': x}
@@ -393,7 +388,7 @@ class MBConvBlock(tf.keras.layers.Layer):
         if survival_prob:
           x = utils.drop_connect(x, training, survival_prob)
         x = tf.add(x, inputs)
-    logging.info('Project: %s shape: %s', x.name, x.shape)
+    logging.info('Project shape: %s', x.shape)
     return x
 
 
@@ -405,7 +400,7 @@ class MBConvBlockWithoutDepthwise(MBConvBlock):
     filters = self._block_args.input_filters * self._block_args.expand_ratio
     if self._block_args.expand_ratio != 1:
       # Expansion phase:
-      self._expand_conv = tf.layers.Conv2D(
+      self._expand_conv = self.conv_cls(
           filters,
           kernel_size=[3, 3],
           strides=[1, 1],
@@ -419,7 +414,7 @@ class MBConvBlockWithoutDepthwise(MBConvBlock):
 
     # Output phase:
     filters = self._block_args.output_filters
-    self._project_conv = tf.layers.Conv2D(
+    self._project_conv = self.conv_cls(
         filters,
         kernel_size=[1, 1],
         strides=self._block_args.strides,
@@ -442,12 +437,12 @@ class MBConvBlockWithoutDepthwise(MBConvBlock):
     Returns:
       A output tensor.
     """
-    logging.info('Block input: %s shape: %s', inputs.name, inputs.shape)
+    logging.info('Block %s  input shape: %s', self.name, inputs.shape)
     if self._block_args.expand_ratio != 1:
       x = self._relu_fn(self._bn0(self._expand_conv(inputs), training=training))
     else:
       x = inputs
-    logging.info('Expand: %s shape: %s', x.name, x.shape)
+    logging.info('Expand shape: %s', x.shape)
 
     self.endpoints = {'expansion_output': x}
 
@@ -466,7 +461,7 @@ class MBConvBlockWithoutDepthwise(MBConvBlock):
         if survival_prob:
           x = utils.drop_connect(x, training, survival_prob)
         x = tf.add(x, inputs)
-    logging.info('Project: %s shape: %s', x.name, x.shape)
+    logging.info('Project shape: %s', x.shape)
     return x
 
 
@@ -476,17 +471,18 @@ class Model(tf.keras.Model):
     Reference: https://arxiv.org/abs/1807.11626
   """
 
-  def __init__(self, blocks_args=None, global_params=None):
+  def __init__(self, blocks_args=None, global_params=None, name=None):
     """Initializes an `Model` instance.
 
     Args:
       blocks_args: A list of BlockArgs to construct block modules.
       global_params: GlobalParams, a set of global parameters.
+      name: A string of layer name.
 
     Raises:
       ValueError: when blocks_args is not specified as a list.
     """
-    super(Model, self).__init__()
+    super(Model, self).__init__(name=name)
     if not isinstance(blocks_args, list):
       raise ValueError('blocks_args should be a list.')
     self._global_params = global_params
@@ -494,6 +490,8 @@ class Model(tf.keras.Model):
     self._relu_fn = global_params.relu_fn or tf.nn.swish
     self._batch_norm = global_params.batch_norm
     self._fix_head_stem = global_params.fix_head_stem
+    # Force the name to make it compitable to previous checkpoints.
+    self.conv_cls = functools.partial(tf.keras.layers.Conv2D, name='conv2d')
 
     self.endpoints = None
 
@@ -516,7 +514,7 @@ class Model(tf.keras.Model):
       self._spatial_dims = [1, 2]
 
     # Stem part.
-    self._conv_stem = tf.layers.Conv2D(
+    self._conv_stem = self.conv_cls(
         filters=round_filters(32, self._global_params, self._fix_head_stem),
         kernel_size=[3, 3],
         strides=[2, 2],
@@ -584,7 +582,7 @@ class Model(tf.keras.Model):
         self._blocks.append(conv_block(block_args, self._global_params))
 
     # Head part.
-    self._conv_head = tf.layers.Conv2D(
+    self._conv_head = self.conv_cls(
         filters=round_filters(1280, self._global_params, self._fix_head_stem),
         kernel_size=[1, 1],
         strides=[1, 1],
@@ -600,7 +598,7 @@ class Model(tf.keras.Model):
     self._avg_pooling = tf.keras.layers.GlobalAveragePooling2D(
         data_format=self._global_params.data_format)
     if self._global_params.num_classes:
-      self._fc = tf.layers.Dense(
+      self._fc = tf.keras.layers.Dense(
           self._global_params.num_classes,
           kernel_initializer=dense_kernel_initializer)
     else:
@@ -633,7 +631,7 @@ class Model(tf.keras.Model):
     self.endpoints = {}
     reduction_idx = 0
     # Calls Stem layers
-    with tf.variable_scope('stem'):
+    with tf.name_scope('stem'):
       outputs = self._relu_fn(
           self._bn0(self._conv_stem(inputs), training=training))
     logging.info('Built stem layers with output shape: %s', outputs.shape)
@@ -653,7 +651,7 @@ class Model(tf.keras.Model):
         is_reduction = True
         reduction_idx += 1
 
-      with tf.variable_scope('blocks_%s' % idx):
+      with tf.name_scope('blocks_%s' % idx):
         survival_prob = self._global_params.survival_prob
         if survival_prob:
           drop_rate = 1.0 - survival_prob
@@ -673,7 +671,7 @@ class Model(tf.keras.Model):
 
     if not features_only:
       # Calls final layers and returns logits.
-      with tf.variable_scope('head'):
+      with tf.name_scope('head'):
         outputs = self._relu_fn(
             self._bn1(self._conv_head(outputs), training=training))
         self.endpoints['head_1x1'] = outputs

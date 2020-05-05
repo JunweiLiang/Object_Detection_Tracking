@@ -19,23 +19,31 @@ from __future__ import division
 # gtype import
 from __future__ import print_function
 
+import contextlib
 import os
+import re
 from absl import logging
 import numpy as np
 import tensorflow.compat.v1 as tf
 import tensorflow.compat.v2 as tf2
+from typing import Text, Tuple, Union
 
 from tensorflow.python.tpu import tpu_function  # pylint:disable=g-direct-tensorflow-import
-
-relu_fn = tf.nn.swish
-backbone_relu_fn = relu_fn
 # pylint: disable=logging-format-interpolation
 
 
-class DepthwiseConv2D(tf.keras.layers.DepthwiseConv2D, tf.layers.Layer):
-  """Wrap keras DepthwiseConv2D to tf.layers."""
-
-  pass
+def activation_fn(features: tf.Tensor, act_type: Text):
+  """Customized non-linear activation type."""
+  if act_type == 'swish':
+    return tf.nn.swish(features)
+  elif act_type == 'swish_native':
+    return features * tf.sigmoid(features)
+  elif act_type == 'relu':
+    return tf.nn.relu(features)
+  elif act_type == 'relu6':
+    return tf.nn.relu6(features)
+  else:
+    raise ValueError('Unsupported act_type {}'.format(act_type))
 
 
 def get_ema_vars():
@@ -48,8 +56,20 @@ def get_ema_vars():
   return list(set(ema_vars))
 
 
-def get_ckt_var_map(ckpt_path, ckpt_scope, var_scope):
-  """Get a var map for restoring from pretrained checkpoints."""
+def get_ckpt_var_map(ckpt_path, ckpt_scope, var_scope, var_exclude_expr=None):
+  """Get a var map for restoring from pretrained checkpoints.
+
+  Args:
+    ckpt_path: string. A pretrained checkpoint path.
+    ckpt_scope: string. Scope name for checkpoint variables.
+    var_scope: string. Scope name for model variables.
+    var_exclude_expr: string. A regex for excluding variables.
+      This is useful for finetuning with different classes, where
+      var_exclude_expr='.*class-predict.*' can be used.
+
+  Returns:
+    var_map: a dictionary from checkpoint name to model variables.
+  """
   logging.info('Init model from checkpoint {}'.format(ckpt_path))
   if not ckpt_scope.endswith('/') or not var_scope.endswith('/'):
     raise ValueError('Please specific scope name ending with /')
@@ -63,7 +83,14 @@ def get_ckt_var_map(ckpt_path, ckpt_scope, var_scope):
   model_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=var_scope)
   reader = tf.train.load_checkpoint(ckpt_path)
   ckpt_var_names = set(reader.get_variable_to_shape_map().keys())
+
+  exclude_matcher = re.compile(var_exclude_expr) if var_exclude_expr else None
   for v in model_vars:
+    if exclude_matcher and exclude_matcher.match(v.op.name):
+      logging.info(
+          'skip {} -- excluded by {}'.format(v.op.name, var_exclude_expr))
+      continue
+
     if not v.op.name.startswith(var_scope):
       logging.info('skip {} -- does not match scope {}'.format(
           v.op.name, var_scope))
@@ -74,13 +101,26 @@ def get_ckt_var_map(ckpt_path, ckpt_scope, var_scope):
       if ckpt_var not in ckpt_var_names:
         logging.info('skip {} ({}) -- not in ckpt'.format(v.op.name, ckpt_var))
         continue
+
     logging.info('Init {} from ckpt var {}'.format(v.op.name, ckpt_var))
     var_map[ckpt_var] = v
   return var_map
 
 
-def get_ckt_var_map_ema(ckpt_path, ckpt_scope, var_scope):
-  """Get a ema var map for restoring from pretrained checkpoints."""
+def get_ckpt_var_map_ema(ckpt_path, ckpt_scope, var_scope, var_exclude_expr):
+  """Get a ema var map for restoring from pretrained checkpoints.
+
+  Args:
+    ckpt_path: string. A pretrained checkpoint path.
+    ckpt_scope: string. Scope name for checkpoint variables.
+    var_scope: string. Scope name for model variables.
+    var_exclude_expr: string. A regex for excluding variables.
+      This is useful for finetuning with different classes, where
+      var_exclude_expr='.*class-predict.*' can be used.
+
+  Returns:
+    var_map: a dictionary from checkpoint name to model variables.
+  """
   logging.info('Init model from checkpoint {}'.format(ckpt_path))
   if not ckpt_scope.endswith('/') or not var_scope.endswith('/'):
     raise ValueError('Please specific scope name ending with /')
@@ -94,7 +134,13 @@ def get_ckt_var_map_ema(ckpt_path, ckpt_scope, var_scope):
   model_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=var_scope)
   reader = tf.train.load_checkpoint(ckpt_path)
   ckpt_var_names = set(reader.get_variable_to_shape_map().keys())
+  exclude_matcher = re.compile(var_exclude_expr) if var_exclude_expr else None
   for v in model_vars:
+    if exclude_matcher and exclude_matcher.match(v.op.name):
+      logging.info(
+          'skip {} -- excluded by {}'.format(v.op.name, var_exclude_expr))
+      continue
+
     if not v.op.name.startswith(var_scope):
       logging.info('skip {} -- does not match scope {}'.format(
           v.op.name, var_scope))
@@ -116,11 +162,12 @@ def get_ckt_var_map_ema(ckpt_path, ckpt_scope, var_scope):
   return var_map
 
 
-class TpuBatchNormalization(tf.layers.BatchNormalization):
-  # class TpuBatchNormalization(tf.layers.BatchNormalization):
+class TpuBatchNormalization(tf.keras.layers.BatchNormalization):
   """Cross replica batch normalization."""
 
   def __init__(self, fused=False, **kwargs):
+    if not kwargs.get('name', None):
+      kwargs['name'] = 'tpu_batch_normalization'
     if fused in (True, None):
       raise ValueError('TpuBatchNormalization does not support fused=True.')
     super(TpuBatchNormalization, self).__init__(fused=fused, **kwargs)
@@ -165,8 +212,15 @@ class TpuBatchNormalization(tf.layers.BatchNormalization):
     else:
       return (shard_mean, shard_variance)
 
+  def call(self, *args, **kwargs):
+    outputs = super(TpuBatchNormalization, self).call(*args, **kwargs)
+    # A temporary hack for tf1 compatibility with keras batch norm.
+    for u in self.updates:
+      tf.add_to_collection(tf.GraphKeys.UPDATE_OPS, u)
+    return outputs
 
-class BatchNormalization(tf.layers.BatchNormalization):
+
+class BatchNormalization(tf.keras.layers.BatchNormalization):
   """Fixed default name of BatchNormalization to match TpuBatchNormalization."""
 
   def __init__(self, **kwargs):
@@ -174,40 +228,49 @@ class BatchNormalization(tf.layers.BatchNormalization):
       kwargs['name'] = 'tpu_batch_normalization'
     super(BatchNormalization, self).__init__(**kwargs)
 
+  def call(self, *args, **kwargs):
+    outputs = super(BatchNormalization, self).call(*args, **kwargs)
+    # A temporary hack for tf1 compatibility with keras batch norm.
+    for u in self.updates:
+      tf.add_to_collection(tf.GraphKeys.UPDATE_OPS, u)
+    return outputs
 
-def batch_norm_class(is_training):
-  if is_training:
+
+def batch_norm_class(is_training, use_tpu=False,):
+  if is_training and use_tpu:
     return TpuBatchNormalization
   else:
     return BatchNormalization
 
 
-def tpu_batch_normalization(inputs, training=False, **kwargs):
+def tpu_batch_normalization(inputs, training=False, use_tpu=False, **kwargs):
   """A wrapper for TpuBatchNormalization."""
-  layer = batch_norm_class(training)(**kwargs)
+  layer = batch_norm_class(training, use_tpu)(**kwargs)
   return layer.apply(inputs, training=training)
 
 
-def batch_norm_relu(inputs,
-                    is_training_bn,
-                    relu=True,
-                    init_zero=False,
-                    data_format='channels_last',
-                    momentum=0.997,
-                    epsilon=1e-4,
-                    name=None):
-  """Performs a batch normalization followed by a ReLU.
+def batch_norm_act(inputs,
+                   is_training_bn: bool,
+                   act_type: Union[Text, None],
+                   init_zero: bool = False,
+                   data_format: Text = 'channels_last',
+                   momentum: float = 0.99,
+                   epsilon: float = 1e-3,
+                   use_tpu: bool = False,
+                   name: Text = None):
+  """Performs a batch normalization followed by a non-linear activation.
 
   Args:
     inputs: `Tensor` of shape `[batch, channels, ...]`.
     is_training_bn: `bool` for whether the model is training.
-    relu: `bool` if False, omits the ReLU operation.
+    act_type: non-linear relu function type. If None, omits the relu operation.
     init_zero: `bool` if True, initializes scale parameter of batch
       normalization with 0 instead of 1 (default).
     data_format: `str` either "channels_first" for `[batch, channels, height,
       width]` or "channels_last for `[batch, height, width, channels]`.
     momentum: `float`, momentume of batch norm.
     epsilon: `float`, small value for numerical stability.
+    use_tpu: `bool`, whether to use tpu version of batch norm.
     name: the name of the batch normalization layer
 
   Returns:
@@ -231,11 +294,12 @@ def batch_norm_relu(inputs,
       center=True,
       scale=True,
       training=is_training_bn,
+      use_tpu=use_tpu,
       gamma_initializer=gamma_initializer,
       name=name)
 
-  if relu:
-    inputs = relu_fn(inputs)
+  if act_type:
+    inputs = activation_fn(inputs, act_type)
   return inputs
 
 
@@ -265,6 +329,8 @@ def num_params_flops(readable_format=True):
   options['output'] = 'none'
   flops = tf.profiler.profile(
       tf.get_default_graph(), options=options).total_float_ops
+  # We use flops to denote multiply-adds, which is counted as 2 ops in tfprof.
+  flops = flops // 2
   if readable_format:
     nparams = float(nparams) * 1e-6
     flops = float(flops) * 1e-9
@@ -275,15 +341,23 @@ conv_kernel_initializer = tf.initializers.variance_scaling()
 dense_kernel_initializer = tf.initializers.variance_scaling()
 
 
+class Pair(tuple):
+
+  def __new__(cls, name, value):
+    return super(Pair, cls).__new__(cls, (name, value))
+
+  def __init__(self, name, _):  # pylint: disable=super-init-not-called
+    self.name = name
+
+
 def scalar(name, tensor):
   """Stores a (name, Tensor) tuple in a custom collection."""
-  logging.info('Adding summary {}'.format((name, tensor)))
-  tf.add_to_collection('edsummaries', (name, tf.reduce_mean(tensor)))
+  logging.info('Adding summary {}'.format(Pair(name, tensor)))
+  tf.add_to_collection('edsummaries', Pair(name, tf.reduce_mean(tensor)))
 
 
 def get_scalar_summaries():
   """Returns the list of (name, Tensor) summaries recorded by scalar()."""
-  logging.info('get summaries {}'.format(tf.get_collection('edsummaries')))
   return tf.get_collection('edsummaries')
 
 
@@ -351,8 +425,7 @@ def archive_ckpt(ckpt_eval, ckpt_objective, ckpt_path):
     tf.io.gfile.copy(f, dest, overwrite=True)
   ckpt_state = tf.train.generate_checkpoint_state_proto(
       dst_dir,
-      model_checkpoint_path=ckpt_name,
-      all_model_checkpoint_paths=[ckpt_name])
+      model_checkpoint_path=os.path.join(dst_dir, ckpt_name))
   with tf.io.gfile.GFile(os.path.join(dst_dir, 'checkpoint'), 'w') as f:
     f.write(str(ckpt_state))
   with tf.io.gfile.GFile(os.path.join(dst_dir, 'best_eval.txt'), 'w') as f:
@@ -364,3 +437,129 @@ def archive_ckpt(ckpt_eval, ckpt_objective, ckpt_path):
 
   logging.info('Copying checkpoint {} to {}'.format(ckpt_path, dst_dir))
   return True
+
+
+def parse_image_size(image_size: Union[Text, int, Tuple[int, int]]):
+  """Parse the image size and return (height, width).
+
+  Args:
+    image_size: A integer, a tuple (H, W), or a string with HxW format.
+
+  Returns:
+    A tuple of integer (height, width).
+  """
+  if isinstance(image_size, int):
+    # image_size is integer, with the same width and height.
+    return (image_size, image_size)
+
+  if isinstance(image_size, str):
+    # image_size is a string with format WxH
+    width, height = image_size.lower().split('x')
+    return (int(height), int(width))
+
+  if isinstance(image_size, tuple):
+    return image_size
+
+  raise ValueError('image_size must be an int, WxH string, or (height, width)'
+                   'tuple. Was %r' % image_size)
+
+
+def get_feat_sizes(image_size: Union[Text, int, Tuple[int, int]],
+                   max_level: int):
+  """Get feat widths and heights for all levels.
+
+  Args:
+    image_size: A integer, a tuple (H, W), or a string with HxW format.
+    max_level: maximum feature level.
+
+  Returns:
+    feat_sizes: a list of tuples (height, width) for each level.
+  """
+  image_size = parse_image_size(image_size)
+  feat_sizes = [{'height': image_size[0], 'width': image_size[1]}]
+  feat_size = image_size
+  for _ in range(1, max_level + 1):
+    feat_size = ((feat_size[0] - 1) // 2 + 1, (feat_size[1] - 1) // 2 + 1)
+    feat_sizes.append({'height': feat_size[0], 'width': feat_size[1]})
+  return feat_sizes
+
+
+@contextlib.contextmanager
+def float16_scope():
+  """Scope class for float16."""
+
+  def _custom_getter(getter, *args, **kwargs):
+    """Returns a custom getter that methods must be called under."""
+    cast_to_float16 = False
+    requested_dtype = kwargs['dtype']
+    if requested_dtype == tf.float16:
+      kwargs['dtype'] = tf.float32
+      cast_to_float16 = True
+    var = getter(*args, **kwargs)
+    if cast_to_float16:
+      var = tf.cast(var, tf.float16)
+    return var
+
+  with tf.variable_scope('', custom_getter=_custom_getter) as varscope:
+    yield varscope
+
+
+def set_precision_policy(policy_name: Text = 'float32'):
+  """Set precision policy according to the name.
+
+  Args:
+    policy_name: precision policy name, one of 'float32', 'mixed_float16',
+      'mixed_bfloat16', or None.
+  """
+  if not policy_name or policy_name == 'float32':
+    return
+
+  assert policy_name in ('mixed_float16', 'mixed_bfloat16')
+  logging.info('use mixed precision policy name %s', policy_name)
+  # TODO(tanmingxing): use tf.keras.layers.enable_v2_dtype_behavior() when it
+  # available in stable TF release.
+  from tensorflow.python.keras.engine import base_layer_utils  # pylint: disable=g-import-not-at-top,g-direct-tensorflow-import
+  base_layer_utils.enable_v2_dtype_behavior()
+  # mixed_float16 training is not supported for now, so disable loss_scale.
+  # float32 and mixed_bfloat16 do not need loss scale for training.
+  policy = tf2.keras.mixed_precision.experimental.Policy(
+      policy_name, loss_scale=None)
+  tf2.keras.mixed_precision.experimental.set_policy(policy)
+
+
+def build_model_with_precision(pp, mm, ii, *args, **kwargs):
+  """Build model with its inputs/params for a specified precision context.
+
+  This is highly specific to this codebase, and not intended to be general API.
+  Advanced users only. DO NOT use it if you don't know what it does.
+  NOTE: short argument names are intended to avoid conficts with kwargs.
+
+  Args:
+    pp: A string, precision policy name, such as "mixed_float16".
+    mm: A function, for rmodel builder.
+    ii: A tensor, for model inputs.
+    *args: A list of model arguments.
+    **kwargs: A dict, extra model parameters.
+
+  Returns:
+    the output of mm model.
+  """
+  if pp == 'mixed_bfloat16':
+    set_precision_policy(pp)
+    inputs = tf.cast(ii, tf.bfloat16)
+    with tf.tpu.bfloat16_scope():
+      outputs = mm(inputs, *args, **kwargs)
+    set_precision_policy('float32')
+  elif pp == 'mixed_float16':
+    set_precision_policy(pp)
+    inputs = tf.cast(ii, tf.float16)
+    with float16_scope():
+      outputs = mm(inputs, *args, **kwargs)
+    set_precision_policy('float32')
+  elif not pp or pp == 'float32':
+    outputs = mm(ii, *args, **kwargs)
+  else:
+    raise ValueError('Unknow precision name {}'.format(pp))
+
+  # Users are responsible to convert the dtype of all outputs.
+  return outputs

@@ -30,9 +30,7 @@ MAX_NUM_INSTANCES = 100
 class InputProcessor(object):
   """Base class of Input processor."""
 
-  # changed by junwei to have max_size and shorter_egde_size, no need to pad to
-  # max_size
-  def __init__(self, image, output_size, shorter_egde_size):
+  def __init__(self, image, output_size):
     """Initializes a new `InputProcessor`.
 
     Args:
@@ -41,8 +39,10 @@ class InputProcessor(object):
         function.
     """
     self._image = image
-    self._output_size = output_size
-    self._shorter_edge_size = shorter_egde_size
+    if isinstance(output_size, int):
+      self._output_size = (output_size, output_size)
+    else:
+      self._output_size = output_size
     # Parameters to control rescaling and shifting during preprocessing.
     # Image scale defines scale from original image to scaled image.
     self._image_scale = tf.constant(1.0)
@@ -71,24 +71,26 @@ class InputProcessor(object):
     """Set the parameters for multiscale training."""
     # Select a random scale factor.
     random_scale_factor = tf.random_uniform([], scale_min, scale_max)
-    scaled_size = tf.to_int32(random_scale_factor * self._output_size)
+    scaled_y = tf.cast(random_scale_factor * self._output_size[0], tf.int32)
+    scaled_x = tf.cast(random_scale_factor * self._output_size[1], tf.int32)
 
     # Recompute the accurate scale_factor using rounded scaled image size.
-    height = tf.shape(self._image)[0]
-    width = tf.shape(self._image)[1]
-    max_image_size = tf.to_float(tf.maximum(height, width))
-    image_scale = tf.to_float(scaled_size) / max_image_size
+    height = tf.cast(tf.shape(self._image)[0], tf.float32)
+    width = tf.cast(tf.shape(self._image)[1], tf.float32)
+    image_scale_y = tf.cast(scaled_y, tf.float32) / height
+    image_scale_x = tf.cast(scaled_x, tf.float32) / width
+    image_scale = tf.minimum(image_scale_x, image_scale_y)
 
     # Select non-zero random offset (x, y) if scaled image is larger than
     # self._output_size.
-    scaled_height = tf.to_int32(tf.to_float(height) * image_scale)
-    scaled_width = tf.to_int32(tf.to_float(width) * image_scale)
-    offset_y = tf.to_float(scaled_height - self._output_size)
-    offset_x = tf.to_float(scaled_width - self._output_size)
+    scaled_height = tf.cast(height * image_scale, tf.int32)
+    scaled_width = tf.cast(width * image_scale, tf.int32)
+    offset_y = tf.cast(scaled_height - self._output_size[0], tf.float32)
+    offset_x = tf.cast(scaled_width - self._output_size[1], tf.float32)
     offset_y = tf.maximum(0.0, offset_y) * tf.random_uniform([], 0, 1)
     offset_x = tf.maximum(0.0, offset_x) * tf.random_uniform([], 0, 1)
-    offset_y = tf.to_int32(offset_y)
-    offset_x = tf.to_int32(offset_x)
+    offset_y = tf.cast(offset_y, tf.int32)
+    offset_x = tf.cast(offset_x, tf.int32)
     self._image_scale = image_scale
     self._scaled_height = scaled_height
     self._scaled_width = scaled_width
@@ -98,12 +100,13 @@ class InputProcessor(object):
   def set_scale_factors_to_output_size(self):
     """Set the parameters to resize input image to self._output_size."""
     # Compute the scale_factor using rounded scaled image size.
-    height = tf.shape(self._image)[0]
-    width = tf.shape(self._image)[1]
-    max_image_size = tf.to_float(tf.maximum(height, width))
-    image_scale = tf.to_float(self._output_size) / max_image_size
-    scaled_height = tf.to_int32(tf.to_float(height) * image_scale)
-    scaled_width = tf.to_int32(tf.to_float(width) * image_scale)
+    height = tf.cast(tf.shape(self._image)[0], tf.float32)
+    width = tf.cast(tf.shape(self._image)[1], tf.float32)
+    image_scale_y = tf.cast(self._output_size[0], tf.float32) / height
+    image_scale_x = tf.cast(self._output_size[1], tf.float32) / width
+    image_scale = tf.minimum(image_scale_x, image_scale_y)
+    scaled_height = tf.cast(height * image_scale, tf.int32)
+    scaled_width = tf.cast(width * image_scale, tf.int32)
     self._image_scale = image_scale
     self._scaled_height = scaled_height
     self._scaled_width = scaled_width
@@ -112,23 +115,19 @@ class InputProcessor(object):
     """Resize input image and crop it to the self._output dimension."""
     scaled_image = tf.image.resize_images(
         self._image, [self._scaled_height, self._scaled_width], method=method)
-    #scaled_image = scaled_image[
-    #    self._crop_offset_y:self._crop_offset_y + self._output_size,
-    #    self._crop_offset_x:self._crop_offset_x + self._output_size, :]
     scaled_image = scaled_image[
-        self._crop_offset_y:self._crop_offset_y + self._shorter_edge_size,
-        self._crop_offset_x:self._crop_offset_x + self._output_size, :]
+        self._crop_offset_y:self._crop_offset_y + self._output_size[0],
+        self._crop_offset_x:self._crop_offset_x + self._output_size[1], :]
     output_image = tf.image.pad_to_bounding_box(
-        scaled_image, 0, 0, self._shorter_edge_size, self._output_size)
+        scaled_image, 0, 0, self._output_size[0], self._output_size[1])
     return output_image
 
 
 class DetectionInputProcessor(InputProcessor):
   """Input processor for object detection."""
 
-  def __init__(self, image, output_size, shorter_egde_size, boxes=None,
-               classes=None):
-    InputProcessor.__init__(self, image, output_size, shorter_egde_size)
+  def __init__(self, image, output_size, boxes=None, classes=None):
+    InputProcessor.__init__(self, image, output_size)
     self._boxes = boxes
     self._classes = classes
 
@@ -140,8 +139,8 @@ class DetectionInputProcessor(InputProcessor):
   def clip_boxes(self, boxes):
     """Clip boxes to fit in an image."""
     boxes = tf.where(tf.less(boxes, 0), tf.zeros_like(boxes), boxes)
-    boxes = tf.where(tf.greater(boxes, self._output_size - 1),
-                     (self._output_size - 1) * tf.ones_like(boxes), boxes)
+    boxes = tf.where(tf.greater(boxes, self._output_size[0] - 1),
+                     (self._output_size[1] - 1) * tf.ones_like(boxes), boxes)
     return boxes
 
   def resize_and_crop_boxes(self):
@@ -152,7 +151,7 @@ class DetectionInputProcessor(InputProcessor):
     # Adjust box coordinates based on the offset.
     box_offset = tf.stack([self._crop_offset_y, self._crop_offset_x,
                            self._crop_offset_y, self._crop_offset_x,])
-    boxes -= tf.to_float(tf.reshape(box_offset, [1, 4]))
+    boxes -= tf.cast(tf.reshape(box_offset, [1, 4]), tf.float32)
     # Clip the boxes.
     boxes = self.clip_boxes(boxes)
     # Filter out ground truth boxes that are all zeros.
@@ -178,35 +177,6 @@ class DetectionInputProcessor(InputProcessor):
   @property
   def offset_y(self):
     return self._crop_offset_y
-
-
-class SegmentationInputProcessor(InputProcessor):
-  """Input processor for semantic segmentation."""
-
-  def __init__(self, image, output_size, label):
-    InputProcessor.__init__(self, image, output_size)
-    self._label = label
-
-  def random_horizontal_flip(self):
-    """Randomly flip input image and segmentation label."""
-    self._label = tf.expand_dims(self._label, 0)
-    self._image, self._label = preprocessor.random_horizontal_flip(
-        self._image, masks=self._label)
-    self._label = self._label[0, :, :]
-
-  def resize_and_crop_label(self, padding_label,
-                            method=tf.image.ResizeMethod.NEAREST_NEIGHBOR):
-    """Resize label and crop it to the self._output dimension."""
-    scaled_label = tf.image.resize_images(
-        self._label, [self._scaled_height, self._scaled_width], method=method)
-    scaled_label = scaled_label[
-        self._crop_offset_y:self._crop_offset_y + self._output_size,
-        self._crop_offset_x:self._crop_offset_x + self._output_size]
-    scaled_label -= padding_label
-    scaled_label = tf.image.pad_to_bounding_box(
-        scaled_label, 0, 0, self._output_size, self._output_size)
-    scaled_label += padding_label
-    return scaled_label
 
 
 def pad_to_fixed_size(data, pad_value, output_shape):
@@ -260,7 +230,7 @@ class InputReader(object):
 
       Returns:
         image: Image tensor that is preprocessed to have normalized value and
-          fixed dimension [image_size, image_size, 3]
+          fixed dimension [image_height, image_width, 3]
         cls_targets_dict: ordered dictionary with keys
           [min_level, min_level+1, ..., max_level]. The values are tensor with
           shape [height_l, width_l, num_anchors]. The height_l and width_l
@@ -339,8 +309,6 @@ class InputReader(object):
                                       [self._max_num_instances, 1])
         areas = pad_to_fixed_size(areas, -1, [self._max_num_instances, 1])
         classes = pad_to_fixed_size(classes, -1, [self._max_num_instances, 1])
-        if params['use_bfloat16']:
-          image = tf.cast(image, dtype=tf.bfloat16)
         return (image, cls_targets, box_targets, num_positives, source_id,
                 image_scale, boxes, is_crowds, areas, classes)
 
@@ -395,75 +363,4 @@ class InputReader(object):
       # first batch. This reduces variance in performance and is useful in
       # testing.
       dataset = dataset.take(1).cache().repeat()
-    return dataset
-
-
-class SegmentationInputReader(object):
-  """Input reader for dataset."""
-
-  def __init__(self, file_pattern, is_training):
-    self._file_pattern = file_pattern
-    self._is_training = is_training
-
-  def __call__(self, params):
-    example_decoder = tf_example_decoder.TfExampleSegmentationDecoder()
-    def _dataset_parser(value):
-      """Parse data to a fixed dimension input image and learning targets.
-
-      Args:
-        value: A dictionary contains an image and groundtruth annotations.
-
-      Returns:
-        A list of the following elements in order:
-        image: Image tensor that is preprocessed to have normalized value and
-          fixed dimension [image_size, image_size, 3]
-        label: label tensor of the same spatial dimension as the image.
-      """
-      with tf.name_scope('parser'):
-        data = example_decoder.decode(value)
-        image = data['image']
-        label = data['labels_class']
-        label = tf.to_int32(label)
-        input_processor = SegmentationInputProcessor(image,
-                                                     params['image_size'],
-                                                     label)
-        # The image normalization is identical to Cloud TPU ResNet.
-        input_processor.normalize_image()
-        if self._is_training and params['input_rand_hflip']:
-          input_processor.random_horizontal_flip()
-        if self._is_training:
-          input_processor.set_training_random_scale_factors(
-              params['train_scale_min'], params['train_scale_max'])
-        image = input_processor.resize_and_crop_image()
-
-        # Set padding to background (class=0) during training.
-        if self._is_training:
-          label = input_processor.resize_and_crop_label(0)
-        else:
-          label = input_processor.resize_and_crop_label(params['ignore_label'])
-        if params['use_bfloat16']:
-          image = tf.cast(image, dtype=tf.bfloat16)
-        return image, label
-
-    batch_size = params['batch_size']
-
-    dataset = tf.data.Dataset.list_files(
-        self._file_pattern, shuffle=self._is_training)
-    if self._is_training:
-      dataset = dataset.repeat()
-
-    def _prefetch_dataset(filename):
-      dataset = tf.data.TFRecordDataset(filename).prefetch(1)
-      return dataset
-
-    dataset = dataset.apply(
-        tf.data.experimental.parallel_interleave(
-            _prefetch_dataset, cycle_length=32, sloppy=self._is_training))
-    if self._is_training:
-      dataset = dataset.shuffle(64)
-
-    dataset = dataset.map(_dataset_parser, num_parallel_calls=64)
-    dataset = dataset.prefetch(batch_size)
-    dataset = dataset.batch(batch_size, drop_remainder=True)
-    dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
     return dataset

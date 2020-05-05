@@ -78,7 +78,8 @@ targetid2class = {targetClass2id[one]:one for one in targetClass2id}
 
 targetactid2class = {targetAct2id[one]:one for one in targetAct2id}
 
-targetsingleactid2class = {targetSingleAct2id[one]:one for one in targetSingleAct2id}
+targetsingleactid2class = {
+    targetSingleAct2id[one]:one for one in targetSingleAct2id}
 
 # coco class to DIVA class
 eval_target = {

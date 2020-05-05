@@ -21,8 +21,11 @@ from __future__ import print_function
 
 import ast
 import copy
-import json
 import six
+import tensorflow.compat.v1 as tf
+
+from typing import Any, Dict, Text
+import yaml
 
 
 def eval_str_fn(val):
@@ -30,7 +33,7 @@ def eval_str_fn(val):
     return val == 'true'
   try:
     return ast.literal_eval(val)
-  except ValueError:
+  except (ValueError, SyntaxError):
     return val
 
 
@@ -47,12 +50,15 @@ class Config(object):
   def __getattr__(self, k):
     return self.__dict__[k]
 
+  def __getitem__(self, k):
+    return self.__dict__[k]
+
   def __repr__(self):
     return repr(self.as_dict())
 
   def __str__(self):
     try:
-      return json.dumps(self.as_dict(), indent=4)
+      return yaml.dump(self.as_dict(), indent=4)
     except TypeError:
       return str(self.as_dict())
 
@@ -62,13 +68,13 @@ class Config(object):
       return
 
     for k, v in six.iteritems(config_dict):
-      if k not in self.__dict__.keys():
+      if k not in self.__dict__:
         if allow_new_keys:
           self.__setattr__(k, v)
         else:
           raise KeyError('Key `{}` does not exist for overriding. '.format(k))
       else:
-        if isinstance(v, dict):
+        if isinstance(self.__dict__[k], dict):
           self.__dict__[k]._update(v, allow_new_keys)
         else:
           self.__dict__[k] = copy.deepcopy(v)
@@ -80,10 +86,22 @@ class Config(object):
     """Update members while allowing new keys."""
     self._update(config_dict, allow_new_keys=True)
 
+  def keys(self):
+    return self.__dict__.keys()
+
   def override(self, config_dict_or_str):
     """Update members while disallowing new keys."""
     if isinstance(config_dict_or_str, str):
-      config_dict = self.parse_from_str(config_dict_or_str)
+      if not config_dict_or_str:
+        return
+      elif '=' in config_dict_or_str:
+        config_dict = self.parse_from_str(config_dict_or_str)
+      elif config_dict_or_str.endswith('.yaml'):
+        config_dict = self.parse_from_yaml(config_dict_or_str)
+      else:
+        raise ValueError(
+            'Invalid string {}, must end with .yaml or contains "=".'.format(
+                config_dict_or_str))
     elif isinstance(config_dict_or_str, dict):
       config_dict = config_dict_or_str
     else:
@@ -91,7 +109,30 @@ class Config(object):
 
     self._update(config_dict, allow_new_keys=False)
 
-  def parse_from_str(self, config_str):
+  def parse_from_module(self, module_name: Text) -> Dict[Any, Any]:
+    """Import config from module_name containing key=value pairs."""
+    config_dict = {}
+    module = __import__(module_name)
+
+    for attr in dir(module):
+      # skip built-ins and private attributes
+      if not attr.startswith('_'):
+        config_dict[attr] = getattr(module, attr)
+
+    return config_dict
+
+  def parse_from_yaml(self, yaml_file_path: Text) -> Dict[Any, Any]:
+    """Parses a yaml file and returns a dictionary."""
+    with tf.io.gfile.GFile(yaml_file_path, 'r') as f:
+      config_dict = yaml.load(f, Loader=yaml.FullLoader)
+      return config_dict
+
+  def save_to_yaml(self, yaml_file_path):
+    """Write a dictionary into a yaml file."""
+    with tf.gfile.Open(yaml_file_path, 'w') as f:
+      yaml.dump(self.as_dict(), f, default_flow_style=False)
+
+  def parse_from_str(self, config_str: Text) -> Dict[Any, Any]:
     """parse from a string in format 'x=a,y=2' and return the dict."""
     if not config_str:
       return {}
@@ -127,8 +168,11 @@ def default_detection_configs():
   # model name.
   h.name = 'efficientdet-d1'
 
+  # activation type: see activation_fn in utils.py.
+  h.act_type = 'swish'
+
   # input preprocessing parameters
-  h.image_size = 640
+  h.image_size = 640   # An integer or a string WxH such as 640x320.
   h.input_rand_hflip = True
   h.train_scale_min = 0.1
   h.train_scale_max = 2.0
@@ -137,6 +181,7 @@ def default_detection_configs():
   # dataset specific parameters
   h.num_classes = 90
   h.skip_crowd_during_training = True
+  h.label_id_mapping = None
 
   # model architecture
   h.min_level = 3
@@ -153,8 +198,10 @@ def default_detection_configs():
   h.lr_warmup_epoch = 1.0
   h.first_lr_drop_epoch = 200.0
   h.second_lr_drop_epoch = 250.0
+  h.poly_lr_power = 0.9
   h.clip_gradients_norm = 10.0
   h.num_epochs = 300
+  h.data_format = 'channels_last'
 
   # classification loss
   h.alpha = 0.25
@@ -165,7 +212,9 @@ def default_detection_configs():
   # regularization l2 loss.
   h.weight_decay = 4e-5
   # enable bfloat
-  h.use_bfloat16 = True
+  h.use_tpu = True
+  # precision: one of 'float32', 'mixed_float16', 'mixed_bfloat16'.
+  h.precision = None   # If None, use float32.
 
   # For detection.
   h.box_class_repeats = 3
@@ -174,12 +223,13 @@ def default_detection_configs():
   h.separable_conv = True
   h.apply_bn_for_resampling = True
   h.conv_after_downsample = False
-  h.conv_bn_relu_pattern = False
+  h.conv_bn_act_pattern = False
   h.use_native_resize_op = False
   h.pooling_type = None
 
   # version.
   h.fpn_name = None
+  h.fpn_weight_method = None
   h.fpn_config = None
 
   # No stochastic depth in default.
@@ -187,9 +237,13 @@ def default_detection_configs():
 
   h.lr_decay_method = 'cosine'
   h.moving_average_decay = 0.9998
-  h.ckpt_var_scope = None
+  h.ckpt_var_scope = None  # ckpt variable scope.
+  # exclude vars when loading pretrained ckpts.
+  h.var_exclude_expr = '.*/class-predict/.*'  # exclude class weights in default
+
   h.backbone_name = 'efficientnet-b1'
   h.backbone_config = None
+  h.var_freeze_expr = None
 
   # RetinaNet.
   h.resnet_depth = 50
@@ -261,6 +315,17 @@ efficientdet_model_param_dict = {
             box_class_repeats=5,
             fpn_name='bifpn_sum',  # Use unweighted sum for training stability.
         ),
+    'efficientdet-d7':
+        dict(
+            name='efficientdet-d7',
+            backbone_name='efficientnet-b6',
+            image_size=1536,
+            fpn_num_filters=384,
+            fpn_cell_repeats=8,
+            box_class_repeats=5,
+            anchor_scale=5.0,
+            fpn_name='bifpn_sum',  # Use unweighted sum for training stability.
+        ),
 }
 
 
@@ -269,6 +334,7 @@ def get_efficientdet_config(model_name='efficientdet-d1'):
   h = default_detection_configs()
   h.override(efficientdet_model_param_dict[model_name])
   return h
+
 
 retinanet_model_param_dict = {
     'retinanet-50':

@@ -127,30 +127,19 @@ def get_model_feat(config, gpuid=0, task=0, controller="/cpu:0"):
 def pack(config):
 
   # the graph var names to be saved
-  if config.is_efficientdet:
-    vars_ = [
-        "cls_outputs_all_after_topk",
-        "box_outputs_all_after_topk",
-        "indices_all",
-        "classes_all",
-        "level_index_all_after_topk",
-        "scale"]
-    for lvl in range(
-        config.efficientdet_min_level, config.efficientdet_max_level + 1):
-      vars_.append("fpn_feats_lvl%s" % lvl)
-  else:
+
+  vars_ = [
+      "final_boxes",
+      "final_labels",
+      "final_probs",
+      "fpn_box_feat"]
+  if config.add_mask:
     vars_ = [
         "final_boxes",
         "final_labels",
         "final_probs",
+        "final_masks",
         "fpn_box_feat"]
-    if config.add_mask:
-      vars_ = [
-          "final_boxes",
-          "final_labels",
-          "final_probs",
-          "final_masks",
-          "fpn_box_feat"]
 
   model = get_model(config)
   tfconfig = tf.ConfigProto(allow_soft_placement=True)

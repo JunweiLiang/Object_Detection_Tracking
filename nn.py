@@ -623,7 +623,7 @@ def GNReLU(x, name=None):
 
 
 # add weight decay to the current varaible scope
-def add_wd(wd,scope=None):
+def add_wd(wd, scope=None):
   if wd != 0.0:
     # for all variable in the current scope
     scope = scope or tf.get_variable_scope().name
@@ -853,7 +853,7 @@ def resnet_fpn_backbone(image, num_blocks,resolution_requirement,
   new_shape2d = tf.to_int32(tf.ceil(tf.to_float(shape2d) / mult) * mult)
   pad_shape2d = new_shape2d - shape2d
 
-  channel = image.shape[1]
+  channel = image.shape[1]  # [B, C, H, W]
 
   if use_gn:
     NormReLU = GNReLU
@@ -866,6 +866,7 @@ def resnet_fpn_backbone(image, num_blocks,resolution_requirement,
   if use_resnext:
     block_func = resnext_32x4d_bottleneck
 
+  # tf_pad_reverse= True
   pad_base = maybe_reverse_pad(2, 3, tf_pad_reverse)
 
   l = tf.pad(
