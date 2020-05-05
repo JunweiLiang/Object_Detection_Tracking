@@ -291,6 +291,8 @@ def get_args():
     args.num_class = 81
     args.is_coco_model = True
 
+  args.classname2id = targetClass2id
+  args.classid2name = targetid2class
   # ---------------more defautls
   args.is_pack_model = False
   args.diva_class3 = True
@@ -410,8 +412,8 @@ def initialize(config, sess):
         # load from dict
         weights = np.load(load_from)
         params = {get_op_tensor_name(n)[1]:v
-                  for n, v in dict(weights).iteritems()}
-        param_names = set(params.iterkeys())
+                  for n, v in dict(weights).items()}
+        param_names = set(params.keys())
 
         variables = restore_vars
 
