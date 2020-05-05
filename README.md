@@ -387,6 +387,10 @@ These are my experiences with working on this [surveillance dataset](https://act
 9. [Relation Network](https://arxiv.org/abs/1711.11575) does not improve and the model is huge ([my implementation](nn.py#L100)).
 10. ResNeXt does not see significant improvement on this dataset.
 
+## TODO
++ Use Python Queue and a separate thread for frame extraction
++ Make batch_size > 1 for inferencing
+
 ## Acknowledgements
 I made this code by studying the nice example in [Tensorpack](https://github.com/tensorpack/tensorpack/tree/master/examples/FasterRCNN).
 
