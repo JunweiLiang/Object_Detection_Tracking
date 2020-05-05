@@ -76,7 +76,7 @@ To have the object detection output in COCO json format, add `--out_dir test_jso
 To speed it up, try `--frame_gap 8`, and the tracks between detection frames will be linearly interpolated.
 The tracking results will be in `test_track_out/` and in MOTChallenge format.
 
-To run with *EfficientDet* models, download checkpoint from the official [repo](https://github.com/google/automl/tree/master/efficientdet) or [my-d0-snapshot](https://aladdin-eax.inf.cs.cmu.edu/shares/diva_obj_detect_models/models/efficientdet-d0.tar.gz). Then run with `--is_efficientdet` and `--efficientdet_modelname efficientdet-d0`.
+To run with **EfficientDet** models, download checkpoint from the official [repo](https://github.com/google/automl/tree/master/efficientdet) or [my-d0-snapshot](https://aladdin-eax.inf.cs.cmu.edu/shares/diva_obj_detect_models/models/efficientdet-d0.tar.gz). Then run with `--is_efficientdet` and `--efficientdet_modelname efficientdet-d0`.
 
 To visualize the tracking results:
 ```
