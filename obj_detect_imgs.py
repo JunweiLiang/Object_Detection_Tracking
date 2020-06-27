@@ -529,6 +529,7 @@ if __name__ == "__main__":
             #"bbox": list(map(lambda x: float(round(x, 2)), box)),
             "bbox": [float(round(x, 2)) for x in box],
             "segmentation": rle,
+            "im_size": [im.shape[0], im.shape[1]],
         }
 
         pred.append(res)
