@@ -173,6 +173,9 @@ def get_args():
   # for efficient use of COCO model classes
   parser.add_argument("--use_partial_classes", action="store_true")
 
+  parser.add_argument("--only_classes", default=None,
+                      help="only these classnames (comma seperated) to save")
+
   args = parser.parse_args()
 
   if args.use_partial_classes:
@@ -326,6 +329,10 @@ def get_args():
   args.result_score_thres = args.threshold_conf
   args.result_per_im = 100
 
+
+  if args.only_classes is not None:
+    args.only_classes = args.only_classes.split(",")
+
   return args
 
 
@@ -358,8 +365,9 @@ def initialize(config, sess):
         # load from dict
         weights = np.load(load_from)
         params = {get_op_tensor_name(n)[1]:v
-                  for n, v in dict(weights).iteritems()}
-        param_names = set(params.iterkeys())
+                  #for n, v in dict(weights).iteritems()}
+                  for n, v in dict(weights).items()}
+        param_names = set(params.keys())
 
         variables = restore_vars
 
@@ -503,6 +511,9 @@ if __name__ == "__main__":
         cat_id = int(label)
         cat_name = targetid2class[cat_id]
 
+        if args.only_classes and cat_name not in args.only_classes:
+          continue
+
         # encode mask
         rle = None
         if args.add_mask:
@@ -531,6 +542,9 @@ if __name__ == "__main__":
       if args.visualize:
         good_ids = [i for i in range(len(final_boxes))
                     if final_probs[i] >= args.vis_thres]
+        if args.only_classes:
+          good_ids = [i for i in good_ids
+                      if targetid2class[final_labels[i]] in args.only_classes]
         final_boxes, final_labels, final_probs = final_boxes[good_ids], \
             final_labels[good_ids], final_probs[good_ids]
         vis_boxes = np.asarray(

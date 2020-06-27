@@ -92,6 +92,23 @@ Now you have the tracking visualization videos for both "Person" and "Vehicle" c
 
 3. You can also run inferencing with frozen graph (See [this](SPEED.md) for instructions of how to pack the model). Change `--model_path obj_v3.pb` and add `--is_load_from_pb`. It is about 30% faster. For running on [MEVA](http://mevadata.org/) dataset (avi videos & indoor scenes) or with [EfficientDet](https://github.com/google/automl/tree/master/efficientdet) models, see examples [here](COMMANDS.md).
 
+4. You can also run object detection on a list of images. Suppose you have a file list `imgs.lst` with absolute paths to images. Run with COCO trained MaskRCNN model:
+```
+# get model from Tensorpack
+$ wget http://models.tensorpack.com/FasterRCNN/COCO-MaskRCNN-R101FPN1x.npz
+$ python obj_detect_imgs.py --model_path COCO-MaskRCNN-R101FPN1x.npz --version 2 \
+--img_lst imgs.lst --out_dir detection_out_maskrcnn --max_size 480 \
+--short_edge_size 320 --is_coco_model --visualize --vis_path detection_vis_maskrcnn
+```
+Adjust the image input size as you wish. Run with COCO trained EfficientDet model:
+```
+$ https://storage.googleapis.com/cloud-tpu-checkpoints/efficientdet/coco/efficientdet-d0.tar.gz; tar -zxvf efficientdet-d0.tar.gz
+$ python obj_detect_imgs.py --model_path efficientdet-d0/ --version 2 \
+--is_efficientdet --efficientdet_modelname efficientdet-d0 --img_lst imgs.lst \
+ --out_dir detection_out_d0 --max_size 480 --short_edge_size 320 --is_coco_model \
+ --visualize --vis_path detection_vis_d0
+```
+
 ## Models
 These are the models you can use for inferencing. The original ActEv annotations can be downloaded from [here](https://next.cs.cmu.edu/data/actev-v1-drop4-yaml.tgz). I will add instruction for training and testing if requested. Click to download each model.
 

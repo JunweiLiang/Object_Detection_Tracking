@@ -17,7 +17,9 @@ class EfficientDet():
     # note here the image type is uint8, not float32, as efficientdet
     # uses tf.image.convert_image_dtype, which need uint8 to auto scale to 0..1
     self.image = tf.placeholder(
-        tf.uint8, [None, config.max_size, 3], name="image")
+    #    tf.uint8, [None, config.max_size, 3], name="image")
+        tf.uint8, [None, None, 3], name="image")
+
 
     # [H, W, 3]  # efficientdet pad to 1920x1920
     p_image, scale = self.build_preprocess(self.image)
