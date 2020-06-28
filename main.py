@@ -307,6 +307,7 @@ def get_args():
                       help="path to annotation, each frame.npz")
   parser.add_argument("--valannopath", type=str, default=None,
                       help="path to annotation, each frame.npz")
+  parser.add_argument("--one_level_framepath", action="store_true")
   parser.add_argument("--flip_image", action="store_true",
                       help="for training, whether to random horizontal "
                            "flipping for input image, maybe not for "
@@ -541,7 +542,7 @@ def get_args():
     targetid2class = {targetAct2id_meva[one]:one for one in targetAct2id_meva}
 
   if args.is_coco_model:
-    assert args.mode == "forward" or args.mode == "pack"
+    #assert args.mode == "forward" or args.mode == "pack"
     args.diva_class = False
     targetClass2id = coco_obj_class_to_id
     targetid2class = coco_obj_id_to_class
@@ -722,7 +723,7 @@ def add_coco(config,datajson):
 
 # load all ground truth into memory
 def read_data_diva(config, idlst, framepath, annopath, tococo=False,
-                   randp=None, is_train=False):
+                   randp=None, is_train=False, one_level_framepath=False):
   assert idlst is not None
   assert framepath is not None
   assert annopath is not None
@@ -808,14 +809,14 @@ def read_data_diva(config, idlst, framepath, annopath, tococo=False,
     no_so_box = True
     no_object = True
     for i, classname in enumerate(list(anno["labels"])):
-      if targetClass2id.has_key(classname) or (
-          config.bupt_exp and bupt_act_mapping.has_key(classname)) or (
-              config.meva_exp and meva_act_mapping.has_key(classname)):
+      if classname in targetClass2id or (
+          config.bupt_exp and classname in  bupt_act_mapping) or (
+              config.meva_exp and classname in meva_act_mapping):
 
-        if config.bupt_exp and bupt_act_mapping.has_key(classname):
+        if config.bupt_exp and classname in bupt_act_mapping:
           classname = bupt_act_mapping[classname]
 
-        if config.meva_exp and meva_act_mapping.has_key(classname):
+        if config.meva_exp and classname in meva_act_mapping:
           classname = meva_act_mapping[classname]
 
         targetClass2exist[classname] = 1
@@ -834,7 +835,7 @@ def read_data_diva(config, idlst, framepath, annopath, tococo=False,
       mixup_labels = []
       for i, classname in enumerate(
           list(anno["mixup_labels"])[:config.max_mixup_per_frame]):
-        if targetClass2id.has_key(classname):
+        if classname in targetClass2id:
           # not adding now, during run time will maybe add them
           #labels.append(targetClass2id[classname])
           #boxes.append(anno["mixup_boxes"][i])
@@ -848,8 +849,9 @@ def read_data_diva(config, idlst, framepath, annopath, tococo=False,
     anno["labels"] = labels
 
     #assert len(anno["boxes"]) > 0
-    if not anno["boxes"]:
+    if len(anno["boxes"]) == 0:
       continue
+
     if config.skip_no_so_img and is_train:
       if no_so_box:
         continue
@@ -887,7 +889,7 @@ def read_data_diva(config, idlst, framepath, annopath, tococo=False,
         # use this to mark BG
         hasClass = np.zeros((K), dtype="bool")
         for i, classname in enumerate(list(anno["actSingleLabels"])):
-          if targetSingleAct2id.has_key(classname):
+          if classname in targetSingleAct2id:
             targetAct2exist_single[classname] = 1
             act_id = targetSingleAct2id[classname]
             box_id = anno["actSingleIdxs"][i]
@@ -912,7 +914,7 @@ def read_data_diva(config, idlst, framepath, annopath, tococo=False,
         act_labels = []
         act_good_ids = []
         for i, classname in enumerate(list(anno["actlabels"])):
-          if targetAct2id.has_key(classname):
+          if classname in targetAct2id:
             targetAct2exist[classname] = 1
             act_labels.append(targetAct2id[classname])
             act_good_ids.append(i)
@@ -943,7 +945,10 @@ def read_data_diva(config, idlst, framepath, annopath, tococo=False,
         weight = config.mixup_constant_weight
       data["mixup_weights"].append(weight)
     else:
-      data["imgs"].append(os.path.join(framepath, videoname, "%s.jpg"%img))
+      if one_level_framepath:
+        data["imgs"].append(os.path.join(framepath, "%s.jpg"%img))
+      else:
+        data["imgs"].append(os.path.join(framepath, videoname, "%s.jpg"%img))
       data["gt"].append(anno)
 
   print("loaded %s/%s data" % (len(data["imgs"]), len(imgs)))
@@ -1077,14 +1082,22 @@ def train_diva(config):
     eval_target = {one:1 for one in eval_target}
     eval_target_weight = {one:1.0/len(eval_target) for one in eval_target}
 
+  if config.is_coco_model:
+    # finetuning person boxes for AVA
+    eval_target = ["person"]
+    eval_target = {one:1 for one in eval_target}
+    eval_target_weight = {one:1.0/len(eval_target) for one in eval_target}
+
   self_summary_strs = Summary()
   stats = [] # tuples with {"metrics":,"step":,}
   # load the frame count data first
 
   train_data = read_data_diva(config, config.trainlst, config.imgpath,
-                              config.annopath, tococo=False, is_train=True)
+                              config.annopath, tococo=False, is_train=True,
+                              one_level_framepath=config.one_level_framepath)
   val_data = read_data_diva(config, config.vallst, config.valframepath,
-                            config.valannopath, tococo=False)
+                            config.valannopath, tococo=False,
+                            one_level_framepath=config.one_level_framepath)
   config.train_num_examples = train_data.num_examples
 
   if config.show_stat:
@@ -1101,11 +1114,11 @@ def train_diva(config):
   # model_per_gpu > 1 not work yet, need to set distributed computing
   #model = get_model(config) # input is image paths
   models = []
-  gpuids = range(config.gpuid_start, config.gpuid_start+config.gpu)
+  gpuids = list(range(config.gpuid_start, config.gpuid_start+config.gpu))
   gpuids = gpuids * config.model_per_gpu
   # example, model_per_gpu=2, gpu=2, gpuid_start=0
   gpuids.sort()# [0,0,1,1]
-  taskids = range(config.model_per_gpu) * config.gpu # [0,1,0,1]
+  taskids = list(range(config.model_per_gpu)) * config.gpu # [0,1,0,1]
 
   for i, j in zip(gpuids, taskids):
     models.append(get_model(config, gpuid=i, task=j,
@@ -2096,11 +2109,11 @@ def test(config):
         cat_id = one["category_id"]
         all_cat_ids[cat_id] = 1
         imageid = int(one["image_id"])
-        if not gt.has_key(imageid):
+        if imageid not in gt:
           gt[imageid] = {} # cat_ids -> boxes[]
         #gt[imageid]["boxes"].append(one["bbox"]) # (x,y,w,h), float
         #gt[imageid]["cat_ids"].append(one["category_id"])
-        if not gt[imageid].has_key(cat_id):
+        if cat_id not in gt[imageid]:
           gt[imageid][cat_id] = []
         gt[imageid][cat_id].append(one["bbox"])
 
@@ -2114,9 +2127,9 @@ def test(config):
         dt_bbox = one["bbox"]
         score = one["score"]
         cat_id = one["category_id"]
-        if not dt.has_key(imageid):
+        if imageid not in dt:
           dt[imageid] = {}
-        if not dt[imageid].has_key(cat_id):
+        if cat_id not in dt[imageid]:
           dt[imageid][cat_id] = []
         dt[imageid][cat_id].append((dt_bbox, score))
 
@@ -2136,7 +2149,7 @@ def test(config):
 
           d = []
           dscores = []
-          if dt.has_key(imageid) and dt[imageid].has_key(cat_id):
+          if imageid in dt and cat_id in dt[imageid]:
             # sort the boxes based on the score first
             dt[imageid][cat_id].sort(key=operator.itemgetter(1), reverse=True)
             for boxes, score in dt[imageid][cat_id]:
@@ -2159,7 +2172,7 @@ def test(config):
         # put all detection scores from all image together
         dscores = np.concatenate(
             [e[imageid][catId]["dscores"][:maxDet]
-             for imageid in e if e[imageid].has_key(catId)])
+             for imageid in e if catId in e[imageid]])
         # sort
         inds = np.argsort(-dscores, kind="mergesort")
         dscores_sorted = dscores[inds]
@@ -2167,9 +2180,9 @@ def test(config):
         # put all detection annotation together based on the score sorting
         dm = np.concatenate(
             [e[imageid][catId]["dm"][:maxDet]
-             for imageid in e if e[imageid].has_key(catId)])[inds]
+             for imageid in e if catId in e[imageid]])[inds]
         num_gt = np.sum([e[imageid][catId]["gt_num"]
-                         for imageid in e if e[imageid].has_key(catId)])
+                         for imageid in e if catId in e[imageid]])
 
         aps[catId] = computeAP(dm)
         ars[catId] = computeAR_2(dm, num_gt)

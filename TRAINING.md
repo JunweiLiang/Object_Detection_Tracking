@@ -36,6 +36,11 @@ v1-training_minival_frames.lst --valannopath v1-training_012019_actgt_allsingle_
 ```
 You can change `--gpu 4` and `--im_batch_size 4` (and maybe `--gpuid_start`) if you have a multi-GPU machine. Note that it is a [known bug](https://github.com/tensorflow/tensorflow/issues/23458) in tf 1.13 that you would see all 4 gpu memory allocated even if you set gpu to 2. This is fixed in tf 1.14.0 (but still takes some GPU0's memory). But multi-GPU training with a subset of the GPUs (`--gpuid_start` larger than 0) will fail since tf v1.13 according to [this](https://github.com/tensorflow/tensorflow/issues/27259).
 
+- June 2020, finetune MaskRCNN person detection on AVA-Kinetics Dataset:
+```
+$ python main.py nothing pack_ava_kinetics_keyframes --mode train --annopath ava_kinetics_person_box_anno/ --trainlst person_train.lst --valframepath pack_ava_kinetics_keyframes --vallst person_val.lst --valannopath ava_kinetics_person_box_anno/ --outbasepath maskrcnn_finetune --modelname maskrcnn_r101fpn --num_epochs 15 --save_period 5000 --rpn_batch_size 256 --frcnn_batch_size 512 --num_class 81 --is_coco_model --one_level_framepath --max_size 560 --short_edge_size 320 --init_lr 0.001 --use_cosine_schedule --warm_up_steps 10000 --optimizer momentum --rpn_test_post_nms_topk 1000 --freeze 0 --gpu 4 --is_fpn --im_batch_size 4 --flip_image --load_from COCO-MaskRCNN-R101FPN1x.npz --show_loss_period 1000 --loss_me_step 100 --wd 0.0001 --val_skip 10
+```
+
 ## Testing
 - Download the videos from [ActEV](https://actev.nist.gov/) or the dataset you wish to test on and extract all the frames into the following format: `validation_frames/${videoname}/${videoname}_F_%08d.jpg`.
 

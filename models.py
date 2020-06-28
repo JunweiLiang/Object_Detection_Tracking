@@ -1449,7 +1449,7 @@ class Mask_RCNN_FPN():
 
     feed_dict = {}
 
-    if batch.data.has_key("imgdata"):
+    if "imgdata" in batch.data:
       image = batch.data["imgdata"][0]
     else:
       image = batch.data["imgs"][0]
@@ -1497,7 +1497,7 @@ class Mask_RCNN_FPN():
           config.short_edge_size_min, config.short_edge_size_max)
 
 
-    if batch.data.has_key("resized_image"):
+    if "resized_image" in batch.data:
       resized_image = batch.data["resized_image"][0]
     else:
       resized_image = resizeImage(image, short_edge_size, config.max_size)
@@ -1575,7 +1575,7 @@ class Mask_RCNN_FPN():
         feed_dict[pl_labels] = in_labels
         feed_dict[pl_boxes] = in_boxes
 
-      assert boxes
+      assert len(boxes) > 0
 
       feed_dict[self.gt_boxes] = boxes
       feed_dict[self.gt_labels] = labels
