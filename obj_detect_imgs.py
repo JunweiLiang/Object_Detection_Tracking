@@ -228,6 +228,12 @@ def get_args():
     targetClass2id = coco_obj_class_to_id
     targetid2class = coco_obj_id_to_class
     args.num_class = 81
+
+    if args.person_only:
+      args.num_class = 2
+      targetid2class = {0: "BG", 1: "person"}
+      targetClass2id = {"BG": 0, "person": 1}
+
     if args.use_partial_classes:
       partial_classes = ["BG"] + args.partial_classes
       targetClass2id = {classname: i

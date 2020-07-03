@@ -157,6 +157,7 @@ def get_args():
                       help="the last layer is new classes without person_object"
                            " boxes")
   parser.add_argument("--is_coco_model", action="store_true")
+  parser.add_argument("--person_only", action="store_true")
 
 
   parser.add_argument("--merge_prop", action="store_true",
@@ -546,6 +547,10 @@ def get_args():
     args.diva_class = False
     targetClass2id = coco_obj_class_to_id
     targetid2class = coco_obj_id_to_class
+    if args.person_only:
+      targetid2class = {0: "BG", 1: "person"}
+      targetClass2id = {"BG": 0, "person": 1}
+
 
   if args.use_partial_classes:
     assert args.is_coco_model
