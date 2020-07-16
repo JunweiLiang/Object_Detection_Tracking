@@ -252,7 +252,7 @@ if __name__ == "__main__":
           box = [box[0], box[1], box[0] + box[2], box[1] + box[3]]
           boxes.append(box)
           #if one.has_key("trackId"):
-          if "trackId" not in one:
+          if "trackId" in one:
             trackId = int(one['trackId'])
             color_key = (trackId, one['cat_name'])
             labels.append("%s: #%s"%(one['cat_name'], trackId))
