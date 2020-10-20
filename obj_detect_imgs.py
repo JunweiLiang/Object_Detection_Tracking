@@ -172,6 +172,7 @@ def get_args():
 
   # for efficient use of COCO model classes
   parser.add_argument("--use_partial_classes", action="store_true")
+  parser.add_argument("--person_only", action="store_true")
 
   parser.add_argument("--only_classes", default=None,
                       help="only these classnames (comma seperated) to save")
