@@ -25,6 +25,12 @@ import numpy as np
 
 import pycocotools.mask as cocomask
 
+# these pycocotools guys will cause
+# 'Unable to init server: Could not connect: Connection refused'
+# for python 3
+# so need this
+import matplotlib
+matplotlib.use("Agg")
 from pycocotools.coco import COCO
 from pycocotools.cocoeval import COCOeval
 

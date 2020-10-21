@@ -13,6 +13,7 @@ from class_ids import bupt_act_mapping, meva_act_mapping, coco_obj_to_actev_obj
 from utils import match_dt_gt, aggregate_eval
 
 
+
 parser = argparse.ArgumentParser()
 parser.add_argument("filelst")
 parser.add_argument("gtpath")
@@ -48,7 +49,6 @@ def gather_dt(boxes_, probs_, labels_, eval_target_, not_coco_box=False):
   target_dt_boxes_ = {one:[] for one in eval_target_}
   for box, prob, label in zip(boxes_, probs_, labels_):
 
-    assert label > 0
     if not_coco_box:
       box[2] -= box[0]
       box[3] -= box[1]
