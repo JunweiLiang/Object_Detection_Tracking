@@ -235,11 +235,14 @@ if __name__ == "__main__":
           meva_act_mapping[one] if one in meva_act_mapping else one
           for one in anno["labels"]]
 
+    anno["labels"] = [o.decode() for o in anno["labels"]]
+
     gt_boxes = gather_gt(anno["boxes"], anno["labels"], eval_target)
 
     match_dt_gt(e, filename, target_dt_boxes, gt_boxes, eval_target)
 
     # check for gt class that doesn"t exists in this file list
+
     for one in anno["labels"]:
       gt_has_none[one] = False
 
