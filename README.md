@@ -35,6 +35,8 @@ We utilize state-of-the-art object detection and tracking algorithm in surveilla
 </div>
 
 ## Updates
++ [10/2020] Added experiments comparing EfficientDet and MaskRCNN on VIRAT and AVA-Kinetics [here](COMMANDS.md#10-2020-comparing-efficientdet-with-maskrcnn-on-video-datasets).
+
 + [05/2020] Added [EfficientDet (CVPR 2020)](https://github.com/google/automl/tree/master/efficientdet) for inferencing. The D7 model is reported to be more than 12 mAP better than the Resnet-50 FPN model we used. Modified to be more efficient and tested with Python 2 & 3 and TF 1.15. See example commands and notes [here](COMMANDS.md).
 
 + [02/2020] We used Resnet-50 FPN model trained on MS-COCO for [MEVA](http://mevadata.org/) activity detection and got a competitive pAUDC of [0.49](images/inf_actev_0.49audc_02-2020.png) on the [leaderboard](https://actev.nist.gov/sdl) with a total processing speed of 0.64x real-time on a 4-GPU machine. The object detection module's processing speed is about 0.125x real-time. \[[Frozen Model](https://aladdin-eax.inf.cs.cmu.edu/shares/diva_obj_detect_models/models/obj_coco_resnet50_partial_tfv1.14_1280x720_rpn300.pb)\] \[[Example Command](COMMANDS.md)\]
