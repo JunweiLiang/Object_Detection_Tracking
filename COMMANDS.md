@@ -74,3 +74,76 @@ $ python obj_detect_imgs.py --model_path efficientdet-d0 \
 --max_size 1920 --short_edge_size 1080 \
 --efficientdet_max_detection_topk 5000
 ```
+
+## 10-2020, comparing EfficientDet with MaskRCNN on video datasets
+
+1. VIRAT
+
+<table>
+  <tr>
+    <td>Models</td>
+    <td>COCO-validation-AP-80classes</td>
+    <td>VIRAT Person-Val-AP </td>
+    <td>VIRAT Vehicle-Val-AP  </td>
+    <td>VIRAT Bike-Val-AP</td>
+  </tr>
+  <tr>
+    <td>MaskRCNN, R50-FPN</td>
+    <td>0.389 </td>
+    <td>0.374 </td>
+    <td>0.943 </td>
+    <td>0.367</td>
+  </tr>
+  <tr>
+    <td>MaskRCNN, R101-FPN</td>
+    <td>0.407 </td>
+    <td>0.378 </td>
+    <td>0.947 </td>
+    <td>0.399</td>
+  </tr>
+  <tr>
+    <td>EfficientDet-d2</td>
+    <td>0.425 </td>
+    <td>0.371 </td>
+    <td>0.949 </td>
+    <td>0.293</td>
+  </tr>
+  <tr>
+    <td>EfficientDet-d6</td>
+    <td>0.513 </td>
+    <td>0.422 </td>
+    <td>0.947 </td>
+    <td>0.355</td>
+  </tr>
+</table>
+
+2. AVA-Kinetics
+
+<table>
+  <tr>
+    <td>Models</td>
+    <td>COCO-validation-AP-80classes</td>
+    <td>AVA-Kinetics Train-Person-AP  </td>
+    <td>AVA-Kinetics Val-Person-AP</td>
+  </tr>
+  <tr>
+    <td>MaskRCNN, R101-FPN</td>
+    <td>0.407 </td>
+    <td>0.664 </td>
+    <td>0.682</td>
+  </tr>
+  <tr>
+    <td>EfficientDet-d2</td>
+    <td>0.425 </td>
+    <td>0.650  </td>
+    <td>0.680</td>
+  </tr>
+  <tr>
+    <td>EfficientDet-d6</td>
+    <td>0.513 </td>
+    <td>0.623 </td>
+    <td>0.658 </td>
+  </tr>
+</table>
+
+VIRAT consists of mostly small person boxes, while AVA-Kineitcs has much bigger ones.
