@@ -146,4 +146,4 @@ $ python obj_detect_imgs.py --model_path efficientdet-d0 \
   </tr>
 </table>
 
-VIRAT consists of mostly small person boxes, while AVA-Kineitcs has much bigger ones.
+VIRAT consists of mostly small person boxes, while AVA-Kineitcs has much bigger ones. So it seems EfficientDet is slightly better on detecting small person. However, EfficientDet-d6 is about 2.4x the inference time of MaskRCNN-R101-FPN.
