@@ -44,7 +44,7 @@ We utilize state-of-the-art object detection and tracking algorithm in surveilla
 + [01/2020] We discovered a problem with using OpenCV to extract frames for avi videos. Some avi videos have duplicate frames that are not physically presented in the files but only text instructions to duplicate previous frames. The problem is that OpenCV skip these frames without warning according to [this bug report](https://github.com/opencv/opencv/issues/9053) and [here](https://stackoverflow.com/questions/44488636/opencv-reading-frames-from-videocapture-advances-the-video-to-bizarrely-wrong-l/44551037). Therefore with OpenCV you may get fewer frames which causes the frame index of detection results to be incorrect. Solution: 1. convert the avi videos to mp4 format; 2. use MoviePy or PyAV loader but they are 10% ~ 30% slower than OpenCV frame extraction. See `obj_detect_tracking.py` for implementation.
 
 ## Dependencies
-The latest inferencing code is tested with Tensorflow==1.15 and Python 2/3.
+The latest inferencing code is tested with Tensorflow-GPU==1.15 and Python 2/3.
 
 Other dependencies: numpy; scipy; sklearn; cv2; matplotlib; pycocotools
 
