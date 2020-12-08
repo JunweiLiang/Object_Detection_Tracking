@@ -35,7 +35,7 @@ We utilize state-of-the-art object detection and tracking algorithm in surveilla
 </div>
 
 ## Updates
-+ [12/2020] Added [multiple-image batch inferencing](), \~30% speed up.
++ [12/2020] Added [multiple-image batch inferencing](multiple-image-batch-inferencing), \~30% speed up.
 
 + [10/2020] Added experiments comparing EfficientDet and MaskRCNN on VIRAT and AVA-Kinetics [here](COMMANDS.md#10-2020-comparing-efficientdet-with-maskrcnn-on-video-datasets).
 
@@ -82,17 +82,6 @@ The tracking results will be in `test_track_out/` and in MOTChallenge format.
 
 To run with **EfficientDet** models, download checkpoint from the official [repo](https://github.com/google/automl/tree/master/efficientdet) or [my-d0-snapshot](https://aladdin-eax.inf.cs.cmu.edu/shares/diva_obj_detect_models/models/efficientdet-d0.tar.gz). Then run with `--is_efficientdet` and `--efficientdet_modelname efficientdet-d0`.
 
-To visualize the tracking results:
-```
-# Put "Person/Vehicle" tracks visualization into the same video
-$ ls $PWD/v1-val_testvideos/* > v1-val_testvideos.abs.lst
-$ python get_frames_resize.py v1-val_testvideos.abs.lst v1-val_testvideos_frames/ --use_2level
-$ python tracks_to_json.py test_track_out/ v1-val_testvideos.abs.lst test_track_out_json
-$ python vis_json.py v1-val_testvideos.abs.lst v1-val_testvideos_frames/ test_track_out_json/ test_track_out_vis
-# then use ffmpeg to make videos
-$ ffmpeg -framerate 30 -i test_track_out_vis/VIRAT_S_000205_05_001092_001124/VIRAT_S_000205_05_001092_001124_F_%08d.jpg vis_video.mp4
-```
-Now you have the tracking visualization videos for both "Person" and "Vehicle" class.
 
 3. You can also run inferencing with frozen graph (See [this](SPEED.md) for instructions of how to pack the model). Change `--model_path obj_v3.pb` and add `--is_load_from_pb`. It is about 30% faster. For running on [MEVA](http://mevadata.org/) dataset (avi videos & indoor scenes) or with [EfficientDet](https://github.com/google/automl/tree/master/efficientdet) models, see examples [here](COMMANDS.md).
 
@@ -113,8 +102,52 @@ $ python obj_detect_imgs.py --model_path efficientdet-d0/ --version 2 \
  --visualize --vis_path detection_vis_d0
 ```
 
+
+### Visualization
+To visualize the tracking results:
+```
+# Put "Person/Vehicle" tracks visualization into the same video
+$ ls $PWD/v1-val_testvideos/* > v1-val_testvideos.abs.lst
+$ python get_frames_resize.py v1-val_testvideos.abs.lst v1-val_testvideos_frames/ --use_2level
+$ python tracks_to_json.py test_track_out/ v1-val_testvideos.abs.lst test_track_out_json
+$ python vis_json.py v1-val_testvideos.abs.lst v1-val_testvideos_frames/ test_track_out_json/ test_track_out_vis
+# then use ffmpeg to make videos
+$ ffmpeg -framerate 30 -i test_track_out_vis/VIRAT_S_000205_05_001092_001124/VIRAT_S_000205_05_001092_001124_F_%08d.jpg vis_video.mp4
+```
+Now you have the tracking visualization videos for both "Person" and "Vehicle" class.
+
+
 ## Multiple-Image Batch Inferencing
-To be added.
+
+1. First download some test videos:
+```
+$ wget https://aladdin-eax.inf.cs.cmu.edu/shares/diva_obj_detect_models/meva_outdoor_test.tgz
+$ tar -zxvf meva_outdoor_test.tgz
+$ ls meva_outdoor_test > meva_outdoor_test.lst
+```
+
+2. Get the COCO-trained MaskRCNN model from Tensorpack:
+```
+$ wget http://models.tensorpack.com/FasterRCNN/COCO-MaskRCNN-R50FPN2x.npz
+```
+
+3. Run object detection & tracking on the test videos with batch_size=8 code:
+```
+$ python obj_detect_tracking_multi.py --model_path COCO-MaskRCNN-R50FPN2x.npz --version 2 \
+--video_dir meva_outdoor_test --video_lst_file meva_outdoor_test.lst --frame_gap 8 \
+--get_tracking --tracking_dir fpnr50_multib4_trackout_1280x720 --gpuid_start 0 --max_size \
+1280 --short_edge_size 720 --use_lijun --im_batch_size 8 --log
+```
+
+This should be \~30% faster than the original batch_size=1 code:
+```
+$ python obj_detect_tracking.py --model_path COCO-MaskRCNN-R50FPN2x.npz --version 2 \
+--video_dir meva_outdoor_test --video_lst_file meva_outdoor_test.lst --frame_gap 8 \
+--get_tracking --tracking_dir fpnr50_b1_trackout_1280x720 --gpuid_start 0 --max_size 1280 \
+--short_edge_size 720 --use_lijun --im_batch_size 1 --log
+```
+You can visualize the results according to [these instructions](#visualization).
+
 
 ## Models
 These are the models you can use for inferencing. The original ActEv annotations can be downloaded from [here](https://next.cs.cmu.edu/data/actev-v1-drop4-yaml.tgz). I will add instruction for training and testing if requested. Click to download each model.
