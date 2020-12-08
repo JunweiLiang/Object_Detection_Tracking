@@ -35,6 +35,8 @@ We utilize state-of-the-art object detection and tracking algorithm in surveilla
 </div>
 
 ## Updates
++ [12/2020] Added [multiple-image batch inferencing](), \~30% speed up.
+
 + [10/2020] Added experiments comparing EfficientDet and MaskRCNN on VIRAT and AVA-Kinetics [here](COMMANDS.md#10-2020-comparing-efficientdet-with-maskrcnn-on-video-datasets).
 
 + [05/2020] Added [EfficientDet (CVPR 2020)](https://github.com/google/automl/tree/master/efficientdet) for inferencing. The D7 model is reported to be more than 12 mAP better than the Resnet-50 FPN model we used. Modified to be more efficient and tested with Python 2 & 3 and TF 1.15. See example commands and notes [here](COMMANDS.md).
@@ -110,6 +112,9 @@ $ python obj_detect_imgs.py --model_path efficientdet-d0/ --version 2 \
  --out_dir detection_out_d0 --max_size 480 --short_edge_size 320 --is_coco_model \
  --visualize --vis_path detection_vis_d0
 ```
+
+## Multiple-Image Batch Inferencing
+To be added.
 
 ## Models
 These are the models you can use for inferencing. The original ActEv annotations can be downloaded from [here](https://next.cs.cmu.edu/data/actev-v1-drop4-yaml.tgz). I will add instruction for training and testing if requested. Click to download each model.

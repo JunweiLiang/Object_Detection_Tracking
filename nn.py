@@ -11,6 +11,7 @@ from operator import mul
 from deformable_helper import _tf_batch_map_offsets
 
 from contextlib import contextmanager
+import functools
 
 VERY_NEGATIVE_NUMBER = -1e30
 
@@ -646,7 +647,7 @@ def flatten(tensor, keep):
   # each num in the [] will a*b*c*d...
   # so [0] -> just N here for left
   # for [N, M, JX, di] , left is N*M
-  left = reduce(
+  left = functools.reduce(
       mul, [fixed_shape[i] or tf.shape(tensor)[i] for i in range(start)])
   # [N, JQ,di]
   # [N*M, JX, di]
@@ -1311,6 +1312,17 @@ def crop_and_resize_nhwc(image, boxes, box_ind, crop_size):
 # get fixed size feature for each box [K,C,output_shape,output_shape]
 # crop the box and resize to a shape
 # here resize with bilinear pooling to twice large box, then average pooling
+def roi_align_multi(featuremap, boxes, box_idxs, output_shape):
+  boxes = tf.stop_gradient(boxes)
+  # [1,C,FS,FS] -> [K,C,out_shape*2,out_shape*2]
+  ret = crop_and_resize(
+      featuremap, boxes,
+      box_idxs, output_shape * 2)
+  ret = tf.nn.avg_pool(
+      ret, ksize=[1, 1, 2, 2], strides=[1, 1, 2, 2],
+      padding="SAME", data_format="NCHW")
+  return ret
+
 def roi_align(featuremap, boxes, output_shape):
   boxes = tf.stop_gradient(boxes)
   # [1,C,FS,FS] -> [K,C,out_shape*2,out_shape*2]
@@ -1323,13 +1335,13 @@ def roi_align(featuremap, boxes, output_shape):
   return ret
 
 
-
 # given boxes, clip the box to be within the image
 def clip_boxes(boxes, image_shape, name=None):
+  # boxes [K, 4] or [B, K, 4]
   boxes = tf.maximum(boxes, 0.0) # lower bound
   # image_shape is HW,
   # HW -> [W, H, W, H] # <- box
-  m = tf.tile(tf.reverse(image_shape, [0]), [2])
+  m = tf.tile(tf.reverse(image_shape, [0]), [2]) # of shape ()
   boxes = tf.minimum(boxes, tf.to_float(m), name=name) # upper bound
   return boxes
 
@@ -1366,9 +1378,9 @@ def generate_rpn_proposals(boxes, scores, img_shape, config, pre_nms_topk=None):
   # rpn min size
   wbhb = topk_boxes_x2y2 - topk_boxes_x1y1
   valid = tf.reduce_all(wbhb > config.rpn_min_size, axis=1)
+  # [K, 2, 2], [K]
   topk_valid_boxes_x1y1x2y2 = tf.boolean_mask(topk_boxes_x1y1x2y2, valid)
   topk_valid_scores = tf.boolean_mask(topk_scores, valid)
-
 
   # for nms input
   topk_valid_boxes_y1x1y2x2 = tf.reshape(
@@ -1387,6 +1399,119 @@ def generate_rpn_proposals(boxes, scores, img_shape, config, pre_nms_topk=None):
 
   return final_boxes, final_scores
 
+# given all the anchor box and their logits, get the proposal box
+# rank and filter, then nms
+# boxes [B, FS, FS, num_anchors, 4], scores [B, FS, FS, num_anchors]
+# img_shape, h, w
+def generate_rpn_proposals_multibatch(boxes, scores, img_shape, config,
+                                      pre_nms_topk=None):
+  # for FPN
+  if pre_nms_topk is not None:
+    post_nms_topk = pre_nms_topk
+  else:
+    if config.is_train:
+      pre_nms_topk = config.rpn_train_pre_nms_topk
+      post_nms_topk = config.rpn_train_post_nms_topk
+    else:
+      pre_nms_topk = config.rpn_test_pre_nms_topk
+      post_nms_topk = config.rpn_test_post_nms_topk
+
+
+  # clip [FS*FS*num_anchors] at the beginning
+  batch_size = scores.get_shape()[0]
+  d_h, d_w, num_anchors = \
+      tf.shape(scores)[1], tf.shape(scores)[2], tf.shape(scores)[3]
+  topk = tf.minimum(pre_nms_topk, d_h*d_w*num_anchors)
+
+  # [B, num_boxes], num_boxes = FS*FS*num_anchors
+  scores = tf.reshape(scores, [batch_size, -1])
+  # [B, num_boxes, 4]
+  boxes = tf.reshape(boxes, [batch_size, -1, 4])
+  # indices: [B, topk]
+  topk_scores, topk_indices = tf.nn.top_k(scores, k=topk, sorted=False)
+
+  # get [B, num_boxes, 4] + [B, topk] -> [B, topk, 4]
+  topk_boxes = tf.gather(boxes, topk_indices, batch_dims=1)
+  topk_boxes = clip_boxes(topk_boxes, img_shape)
+
+  # each [B, topk, 2, 2]
+  topk_boxes_x1y1x2y2 = tf.reshape(topk_boxes, (batch_size, -1, 2, 2))
+
+  # the following dont work with boolean_mask
+  """ rpn_min_size = 0.
+  # each [B, topk, 2]
+  topk_boxes_x1y1, topk_boxes_x2y2 = tf.split(topk_boxes, 2, axis=2)
+  # rpn min size
+  wbhb = topk_boxes_x2y2 - topk_boxes_x1y1  # [B, topk, 2]
+  # logical and
+  valid = tf.reduce_all(wbhb > config.rpn_min_size, axis=2) # [B, topk]
+  # [B, topk, 2, 2] -> [B, valid, 2, 2]
+  topk_valid_boxes_x1y1x2y2 = tf.boolean_mask(topk_boxes_x1y1x2y2, valid,
+                                              axis=1)
+  # [B, valid]
+  topk_valid_scores = tf.boolean_mask(topk_scores, valid, axis=1)
+  # [B, valid, 1]
+  topk_valid_scores = tf.reshape(topk_valid_scores, [batch_size, -1, 1])
+  """
+
+  # for nms input [batch_size, num_boxes, q, 4]
+  # q is 1 then it is class-agnostic
+  # https://www.tensorflow.org/versions/r1.15/api_docs/python/tf/image/combined_non_max_suppression
+  topk_valid_boxes_y1x1y2x2 = tf.reshape(
+      tf.reverse(topk_boxes_x1y1x2y2, axis=[3]), (batch_size, -1, 1, 4),
+      name="nms_input_boxes")
+  topk_scores = tf.reshape(topk_scores, [batch_size, -1, 1])
+  # inputs: [B, valid, 1, 4], [B, valid, 1]
+  # [B, nms_num, 4], [B, nms_num]
+  # valid_indices: [B], each is an int, top k entries in the first 3 are valid
+  nms_boxes, nms_scores, nms_classes, valid_indices = \
+      tf.image.combined_non_max_suppression(
+          topk_valid_boxes_y1x1y2x2, topk_scores,
+          max_output_size_per_class=post_nms_topk,
+          max_total_size=post_nms_topk,  # over all class
+          iou_threshold=config.rpn_proposal_nms_thres,
+          clip_boxes=False,
+          pad_per_class=False)
+
+  # change box y1x1y2x2 to x1y1x2y2
+  nms_boxes_y1x1y2x2 = tf.reshape(nms_boxes, (batch_size, -1, 2, 2))
+  nms_boxes_x1y1x2y2 = tf.reverse(nms_boxes_y1x1y2x2, axis=[3])
+  # [B, nms_num, 4]
+  nms_boxes_x1y1x2y2 = tf.reshape(nms_boxes_x1y1x2y2, (batch_size, -1, 4))
+
+  return nms_boxes_x1y1x2y2, nms_scores, valid_indices
+
+# given the anchor regression prediction,
+# get the refined anchor boxes
+def decode_bbox_target_multi(box_predictions, anchors, decode_clip=np.log(1333/16.0)):
+  # [B, FS, FS, num_anchors, 4]
+  batch_size = box_predictions.get_shape()[0]
+
+  box_pred_txtytwth = tf.reshape(box_predictions, (-1, 4))
+  # [B, FS, FS, num_anchors, 4] -> [All, 2]
+  box_pred_txty, box_pred_twth = tf.split(box_pred_txtytwth, 2, axis=1)
+  # anchors: [FS, FS, num_anchors, 4]
+
+  # get the original anchor box from x1y1x2y2 to center xaya and wh
+
+  anchors = tf.expand_dims(anchors, axis=0)
+  anchors = tf.tile(anchors, [batch_size, 1, 1, 1, 1])
+  anchors_x1y1x2y2 = tf.reshape(anchors, (-1, 4))
+  anchors_x1y1, anchors_x2y2 = tf.split(anchors_x1y1x2y2, 2, axis=1)
+  waha = anchors_x2y2 - anchors_x1y1
+  xaya = (anchors_x2y2 + anchors_x1y1) * 0.5
+
+  # get the refined box
+  # predicted twth is in log
+  wbhb = tf.exp(tf.minimum(box_pred_twth, decode_clip)) * waha
+  xbyb = box_pred_txty * waha + xaya
+
+  # get the refined box in x1y1x2y2
+  x1y1 = xbyb - wbhb*0.5
+  x2y2 = xbyb + wbhb*0.5
+  out = tf.concat([x1y1, x2y2], axis=-1) # [All,4]
+  # [B, FS, FS, num_anchors, 4]
+  return tf.reshape(out, tf.shape(anchors))
 
 # given the anchor regression prediction,
 # get the refined anchor boxes
@@ -1411,7 +1536,6 @@ def decode_bbox_target(box_predictions, anchors, decode_clip=np.log(1333/16.0)):
   x2y2 = xbyb + wbhb*0.5
   out = tf.concat([x1y1, x2y2], axis=-1) # [All,4]
   return tf.reshape(out, tf.shape(anchors))
-
 
 def resizeImage(im, short_size, max_size):
   h, w = im.shape[:2]
@@ -1666,6 +1790,14 @@ def BatchNorm(x, use_local_stat=False, decay=0.9, epsilon=1e-5,
       ret = tf.identity(xn, name="output")
 
     return ret
+
+def add_model_variable_(var):
+  """Adds a variable to the `GraphKeys.MODEL_VARIABLES` collection.
+  Args:
+    var: a variable.
+  """
+  if var not in tf.get_collection(tf.GraphKeys.MODEL_VARIABLES):
+    tf.add_to_collection(tf.GraphKeys.MODEL_VARIABLES, var)
 
 def update_bn_ema(xn, batch_mean, batch_var,
                   moving_mean, moving_var, decay, internal_update):

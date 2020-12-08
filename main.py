@@ -26,6 +26,11 @@ os.environ["TF_ENABLE_CONTROL_FLOW_V2"] = "1"
 import logging
 logging.getLogger("tensorflow").disabled = True
 
+import matplotlib
+# avoid the warning "gdk_cursor_new_for_display:
+# assertion 'GDK_IS_DISPLAY (display)' failed" with Python 3
+matplotlib.use('Agg')
+
 import tensorflow as tf
 import numpy as np
 import pycocotools.mask as cocomask
@@ -474,6 +479,8 @@ def get_args():
 
   # for efficient use of COCO model classes
   parser.add_argument("--use_partial_classes", action="store_true")
+  parser.add_argument("--is_multi", action="store_true",
+      help="use multi-img batch model")
 
   args = parser.parse_args()
 
@@ -488,8 +495,8 @@ def get_args():
 
   if args.no_nms:
     args.use_cpu_nms = True # so to avoid using TF nms in the graph
-  assert args.model_per_gpu == 1, "not work yet!"
-  assert args.gpu*args.model_per_gpu == args.im_batch_size # one gpu one image
+  #assert args.model_per_gpu == 1, "not work yet!"
+  #assert args.gpu*args.model_per_gpu == args.im_batch_size # one gpu one image
   #args.controller = "/cpu:0" # parameter server
 
 

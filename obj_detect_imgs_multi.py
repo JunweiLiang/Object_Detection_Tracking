@@ -70,10 +70,7 @@ def get_args():
 
   parser.add_argument("--out_dir", default=None,
                       help="out_dir/imgname.json")
-  # --- for internal visualization
-  parser.add_argument("--visualize", action="store_true")
-  parser.add_argument("--vis_path", default=None)
-  parser.add_argument("--vis_thres", default=0.7, type=float)
+
 
   parser.add_argument("--threshold_conf", default=0.0001, type=float)
 
@@ -139,13 +136,8 @@ def get_args():
                       help="use attention to sum [K, 7, 7, C] feature into"
                            " [K, C]")
 
-  # ------ 04/2020, efficientdet
-  parser.add_argument("--is_efficientdet", action="store_true")
-  parser.add_argument("--efficientdet_modelname", default="efficientdet-d0")
-  parser.add_argument("--efficientdet_max_detection_topk", type=int,
-                      default=5000, help="#topk boxes before NMS")
-  parser.add_argument("--efficientdet_min_level", type=int, default=3)
-  parser.add_argument("--efficientdet_max_level", type=int, default=7)
+  parser.add_argument("--is_efficientdet", action="store_true",
+                      help="efficientDet")
 
   # ---- COCO Mask-RCNN model
   parser.add_argument("--add_mask", action="store_true")
@@ -183,8 +175,8 @@ def get_args():
     args.is_coco_model = True
     args.partial_classes = [classname for classname in coco_obj_to_actev_obj]
 
-  assert args.gpu == args.im_batch_size  # one gpu one image
-  assert args.gpu == 1, "Currently only support single-gpu inference"
+  #assert args.gpu == args.im_batch_size  # one gpu one image
+  #assert args.gpu == 1, "Currently only support single-gpu inference"
 
   if args.is_load_from_pb:
     args.load_from = args.model_path
@@ -240,14 +232,6 @@ def get_args():
       targetClass2id = {classname: i
                         for i, classname in enumerate(partial_classes)}
       targetid2class = {targetClass2id[o]: o for o in targetClass2id}
-
-  # ---- 04/2020, efficientdet
-  if args.is_efficientdet:
-    targetClass2id = coco_obj_class_to_id
-    targetid2class = coco_obj_id_to_class
-    args.num_class = 81
-    args.is_coco_model = True
-
 
   args.classname2id = targetClass2id
   args.classid2name = targetid2class
@@ -423,6 +407,69 @@ def log_gpu_util(interval, gpuid_range):
     gpu_temp_logs.extend(gpu_temps)
 
 
+def run_detect(args, frame_stack, sess, model, targetid2class, valid_frame_num=None):
+
+  # ignore the padded images
+  if valid_frame_num is None:
+    valid_frame_num = len(frame_stack)
+
+  resized_images, scales, imgnames, imgshapes = zip(*frame_stack)
+
+  feed_dict = model.get_feed_dict_forward_multi(resized_images)
+
+
+  sess_input = [model.final_boxes, model.final_labels,
+                model.final_probs, model.final_valid_indices]
+
+  # [B, num, 4], [B, num], [B, num], [B]
+  batch_boxes, batch_labels, batch_probs, valid_indices = sess.run(
+      sess_input, feed_dict=feed_dict)
+
+  # ---------------- get the json outputs for object detection from each img in
+  # ------ the batch
+
+  for b in range(valid_frame_num):
+    # [k, 4]
+    final_boxes = batch_boxes[b][:valid_indices[b]]
+    # [k]
+    final_labels = batch_labels[b][:valid_indices[b]]
+    # [k]
+    final_probs = batch_probs[b][:valid_indices[b]]
+
+    # scale back the box to original image size
+    final_boxes = final_boxes / scales[b]
+
+    # save as json
+    pred = []
+
+    for j, (box, prob, label) in enumerate(zip(
+        final_boxes, final_probs, final_labels)):
+      box[2] -= box[0]
+      box[3] -= box[1]  # produce x,y,w,h output
+
+      cat_id = int(label)
+      cat_name = targetid2class[cat_id]
+
+      if args.only_classes and cat_name not in args.only_classes:
+        continue
+
+      res = {
+          "category_id": int(cat_id),
+          "cat_name": cat_name,  # [0-80]
+          "score": float(round(prob, 7)),
+          #"bbox": list(map(lambda x: float(round(x, 2)), box)),
+          "bbox": [float(round(x, 2)) for x in box],
+          "segmentation": None,
+          "im_size": [imgshapes[b][0], imgshapes[b][1]],
+      }
+
+      pred.append(res)
+
+    predfile = os.path.join(args.out_dir, "%s.json" % (imgnames[b]))
+
+    with open(predfile, "w") as f:
+      json.dump(pred, f)
+
 if __name__ == "__main__":
   args = get_args()
 
@@ -437,21 +484,15 @@ if __name__ == "__main__":
 
 
   imglst = [line.strip()
-              for line in open(args.img_lst).readlines()]
+            for line in open(args.img_lst).readlines()]
 
   if args.out_dir is not None:
     if not os.path.exists(args.out_dir):
       os.makedirs(args.out_dir)
 
-  if args.visualize:
-    from viz import draw_boxes
-
-    vis_path = args.vis_path
-    if not os.path.exists(vis_path):
-      os.makedirs(vis_path)
-
   # 1. load the object detection model
-  model = get_model(args, args.gpuid_start, controller=args.controller)
+  model = get_model(args, args.gpuid_start, controller=args.controller,
+                    is_multi=True)
 
   tfconfig = tf.ConfigProto(allow_soft_placement=True)
   if not args.use_all_mem:
@@ -465,6 +506,7 @@ if __name__ == "__main__":
     if not args.is_load_from_pb:
       initialize(config=args, sess=sess)
 
+    frame_stack = []
     for imgfile in tqdm(imglst, ascii=True):
       imgname = os.path.splitext(os.path.basename(imgfile))[0]
       frame = cv2.imread(imgfile)
@@ -476,102 +518,21 @@ if __name__ == "__main__":
       scale = (resized_image.shape[0] * 1.0 / im.shape[0] + \
                resized_image.shape[1] * 1.0 / im.shape[1]) / 2.0
 
-      feed_dict = model.get_feed_dict_forward(resized_image)
+      frame_stack.append((
+          resized_image, scale, imgname, (im.shape[0], im.shape[1])))
 
+      if len(frame_stack) == args.im_batch_size:
+        # run the detection and tracking on this batch of images
+        run_detect(args, frame_stack, sess, model, targetid2class)
+        frame_stack = []
 
-      if args.add_mask:
-        sess_input = [model.final_boxes, model.final_labels,
-                      model.final_probs, model.final_masks]
-        final_boxes, final_labels, final_probs, final_masks = sess.run(
-            sess_input, feed_dict=feed_dict)
-      else:
-        sess_input = [model.final_boxes, model.final_labels,
-                      model.final_probs]
-        final_boxes, final_labels, final_probs = sess.run(
-            sess_input, feed_dict=feed_dict)
-
-      if args.is_efficientdet:
-        # the output here is 1 - num_partial_classes
-        if args.use_partial_classes:
-          for i in range(len(final_labels)):
-            final_labels[i] = coco_obj_class_to_id[
-                args.partial_classes[final_labels[i] - 1]]
-        else:
-          # 1-90 to 1-80
-          for i in range(len(final_labels)):
-            final_labels[i] = \
-                coco_obj_class_to_id[coco_id_mapping[final_labels[i]]]
-
-      # ---------------- get the json outputs for object detection
-
-      # scale back the box to original image size
-      final_boxes = final_boxes / scale
-
-      if args.add_mask:
-        final_masks = [fill_full_mask(box, mask, im.shape[:2])
-                       for box, mask in zip(final_boxes, final_masks)]
-
-      # save as json
-      pred = []
-
-      for j, (box, prob, label) in enumerate(zip(
-          final_boxes, final_probs, final_labels)):
-        box[2] -= box[0]
-        box[3] -= box[1]  # produce x,y,w,h output
-
-        cat_id = int(label)
-        cat_name = targetid2class[cat_id]
-
-        if args.only_classes and cat_name not in args.only_classes:
-          continue
-
-        # encode mask
-        rle = None
-        if args.add_mask:
-          final_mask = final_masks[j] # [14, 14]
-          rle = cocomask.encode(np.array(
-              final_mask[:, :, None], order="F"))[0]
-          rle["counts"] = rle["counts"].decode("ascii")
-
-        res = {
-            "category_id": int(cat_id),
-            "cat_name": cat_name,  # [0-80]
-            "score": float(round(prob, 7)),
-            #"bbox": list(map(lambda x: float(round(x, 2)), box)),
-            "bbox": [float(round(x, 2)) for x in box],
-            "segmentation": rle,
-            "im_size": [im.shape[0], im.shape[1]],
-        }
-
-        pred.append(res)
-
-      predfile = os.path.join(args.out_dir, "%s.json" % (imgname))
-
-      with open(predfile, "w") as f:
-        json.dump(pred, f)
-
-      # for visualization
-      if args.visualize:
-        good_ids = [i for i in range(len(final_boxes))
-                    if final_probs[i] >= args.vis_thres]
-        if args.only_classes:
-          good_ids = [i for i in good_ids
-                      if targetid2class[final_labels[i]] in args.only_classes]
-        final_boxes, final_labels, final_probs = final_boxes[good_ids], \
-            final_labels[good_ids], final_probs[good_ids]
-        vis_boxes = np.asarray(
-            [[box[0], box[1], box[2] + box[0], box[3] + box[1]]
-             for box in final_boxes])
-        vis_labels = ["%s_%.2f" % (targetid2class[cat_id], prob)
-                      for cat_id, prob in zip(final_labels, final_probs)]
-        newim = draw_boxes(im, vis_boxes, vis_labels,
-                           color=np.array([255, 0, 0]), font_scale=0.5,
-                           thickness=2)
-
-        vis_file = os.path.join(vis_path,
-                                "%s.jpg" % (imgname))
-        cv2.imwrite(vis_file, newim)
-
+    if frame_stack:
+      valid_frame_num = len(frame_stack)
+      if len(frame_stack) < args.im_batch_size:
+        frame_stack += [frame_stack[-1]] * (args.im_batch_size - len(frame_stack))
+      run_detect(
+          args, frame_stack, sess, model, targetid2class,
+          valid_frame_num=valid_frame_num)
 
 
   if args.log_time_and_gpu:
