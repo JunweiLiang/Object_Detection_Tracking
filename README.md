@@ -35,7 +35,7 @@ We utilize state-of-the-art object detection and tracking algorithm in surveilla
 </div>
 
 ## Updates
-+ [12/2020] Added [multiple-image batch inferencing](multiple-image-batch-inferencing), \~30% speed up.
++ [12/2020] Added [multiple-image batch inferencing](#multiple-image-batch-inferencing), \~30% speed up.
 
 + [10/2020] Added experiments comparing EfficientDet and MaskRCNN on VIRAT and AVA-Kinetics [here](COMMANDS.md#10-2020-comparing-efficientdet-with-maskrcnn-on-video-datasets).
 
