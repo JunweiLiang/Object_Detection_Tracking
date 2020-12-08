@@ -136,7 +136,7 @@ $ wget http://models.tensorpack.com/FasterRCNN/COCO-MaskRCNN-R50FPN2x.npz
 $ python obj_detect_tracking_multi.py --model_path COCO-MaskRCNN-R50FPN2x.npz --version 2 \
 --video_dir meva_outdoor_test --video_lst_file meva_outdoor_test.lst --frame_gap 8 \
 --get_tracking --tracking_dir fpnr50_multib4_trackout_1280x720 --gpuid_start 0 --max_size \
-1280 --short_edge_size 720 --use_lijun --im_batch_size 8 --log
+1280 --short_edge_size 720 --is_coco --use_lijun --im_batch_size 8 --log
 ```
 
 This should be \~30% faster than the original batch_size=1 code:
@@ -144,7 +144,7 @@ This should be \~30% faster than the original batch_size=1 code:
 $ python obj_detect_tracking.py --model_path COCO-MaskRCNN-R50FPN2x.npz --version 2 \
 --video_dir meva_outdoor_test --video_lst_file meva_outdoor_test.lst --frame_gap 8 \
 --get_tracking --tracking_dir fpnr50_b1_trackout_1280x720 --gpuid_start 0 --max_size 1280 \
---short_edge_size 720 --use_lijun --im_batch_size 1 --log
+--short_edge_size 720 --is_coco --use_lijun --im_batch_size 1 --log
 ```
 You can visualize the results according to [these instructions](#visualization).
 
