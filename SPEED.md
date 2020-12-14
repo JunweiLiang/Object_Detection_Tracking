@@ -117,3 +117,18 @@ Machine 2
 | 3       | 206268  | 1920x1080  | 4 / 1*     | 13261.9     | 52.63%                  | 3.89        |
 
 
+## 12/2020, multiple-image batch processing
+
+We test the multiple-image batch processing using these [commands](./README.md#multiple-image-batch-inferencing) for the FPN-ResNet50 model. The machine is with GTX 1070 TI, i7-8700K, SSD. The test video is a single 5-minute video and we test detect and track with 1280x720 resolution, frame_gap=8.
+
+| RunType            | Time | GPU Median Utilization | GPU Average Utilization |
+|--------------------|------|------------------------|-------------------------|
+|b=1 var             |06:21 |        53.00%          |         54.24%          |
+|b=1 frozen          |05:06 |        34.50%          |         36.30%          |
+|b=1 frozen,partial  |03:43 |        57.00%          |         49.55%          |
+|b=4 var             |04:35 |        50.00%          |         52.48%          |
+|b=4 frozen          |03:18 |        64.00%          |         63.32%          |
+|b=4 frozen,partial  |03:15 |        42.00%          |         48.05%          |
+|b=8 var             |04:27 |        00.00%          |          2.35%          |
+|b=8 frozen          |03:12 |        62.00%          |         53.37%          |
+|b=8 frozen,partial  |03:07 |        75.50%          |         62.11%          |

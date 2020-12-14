@@ -37,7 +37,15 @@ $ python obj_detect_tracking.py \
  --use_lijun_video_loader --nms_max_overlap 0.85 --max_iou_distance 0.5 \
  --max_cosine_distance 0.5 --nn_budget 5
 ```
-This is for processing AVI videos. For MP4 videos, run without `--use_lijun`.
+This is for processing AVI videos. I have tried it with pyav==6.2.0. Install it by
+```
+$ sudo apt-get install -y \
+    libavformat-dev libavcodec-dev libavdevice-dev \
+    libavutil-dev libswscale-dev libswresample-dev libavfilter-dev
+$ sudo pip install av==6.2.0
+```
+
+For MP4 videos, run without `--use_lijun`.
 Add `--log_time_and_gpu` to get GPU utilization and time profile.
 
 Example command with a partial frozen graph \[[d0-TFv1.15](https://aladdin-eax.inf.cs.cmu.edu/shares/diva_obj_detect_models/models/efficientd0_tfv1.15_1280x720.pb)\] (slightly faster):

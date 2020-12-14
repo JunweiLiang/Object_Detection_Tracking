@@ -446,7 +446,7 @@ These are my experiences with working on this [surveillance dataset](https://act
 
 ## TODO
 + Use Python Queue and a separate thread for frame extraction
-+ Make batch_size > 1 for inferencing
++ ~~Make batch_size > 1 for inferencing~~ (Done!)
 
 ## Acknowledgements
 I made this code by studying the nice example in [Tensorpack](https://github.com/tensorpack/tensorpack/tree/master/examples/FasterRCNN).
