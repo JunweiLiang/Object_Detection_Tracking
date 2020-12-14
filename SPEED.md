@@ -132,3 +132,18 @@ We test the multiple-image batch processing using these [commands](./README.md#m
 |b=8 var             |04:27 |        00.00%          |          2.35%          |
 |b=8 frozen          |03:12 |        62.00%          |         53.37%          |
 |b=8 frozen,partial  |03:07 |        75.50%          |         62.11%          |
+
+Here is the same test on a better GPU but worse CPU machine: TITAN Xp, i5-4460, SSD.
+0% median GPU means the bottleneck is in CPU processing.
+
+| RunType            | Time | GPU Median Utilization | GPU Average Utilization |
+|--------------------|------|------------------------|-------------------------|
+|b=1 var             |05:51 |        50.00%          |         44.15%          |
+|b=1 frozen          |04:58 |        34.00%          |         29.55%          |
+|b=1 frozen,partial  |03:17 |        42.00%          |         40.58%          |
+|b=4 var             |04:33 |        26.00%          |         37.00%          |
+|b=4 frozen          |03:17 |        12.00%          |         25.26%          |
+|b=4 frozen,partial  |03:09 |        00.00%          |         17.78%          |
+|b=8 var             |04:29 |         8.00%          |         40.88%          |
+|b=8 frozen          |03:15 |        00.00%          |         34.32%          |
+|b=8 frozen,partial  |03:07 |         2.50%          |         29.11%          |
