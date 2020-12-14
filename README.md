@@ -147,7 +147,7 @@ $ python obj_detect_tracking.py --model_path COCO-MaskRCNN-R50FPN2x.npz --versio
 --short_edge_size 720 --is_coco --use_lijun --im_batch_size 1 --log
 ```
 You can visualize the results according to [these instructions](#visualization).
-
+Speed experiments are recorded [here](./SPEED.md#122020-multiple-image-batch-processing)
 
 ## Models
 These are the models you can use for inferencing. The original ActEv annotations can be downloaded from [here](https://next.cs.cmu.edu/data/actev-v1-drop4-yaml.tgz). I will add instruction for training and testing if requested. Click to download each model.
