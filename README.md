@@ -449,7 +449,7 @@ These are my experiences with working on this [surveillance dataset](https://act
 + ~~Make batch_size > 1 for inferencing~~ (Done!)
 
 ## Acknowledgements
-I made this code by studying the nice example in [Tensorpack](https://github.com/tensorpack/tensorpack/tree/master/examples/FasterRCNN).
+I made this code by studying the nice example in [Tensorpack](https://github.com/tensorpack/tensorpack/tree/master/examples/FasterRCNN). The EfficientDet part is modified from the official [repo](https://github.com/google/automl/tree/master/efficientdet).
 
 
 
