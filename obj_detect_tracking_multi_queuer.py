@@ -16,6 +16,8 @@ import os
 import pickle
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
+from enqueuer_thread import VideoEnqueuer
+
 # remove all the annoying warnings from tf v1.10 to v1.13
 import logging
 logging.getLogger("tensorflow").disabled = True
@@ -69,7 +71,7 @@ def get_args():
   parser.add_argument("--video_lst_file", default=None,
                       help="video_file_path = os.path.join(video_dir, $line)")
 
-  parser.add_argument("--out_dir", default=None,
+  parser.add_argument("--obj_out_dir", default=None,
                       help="out_dir/$basename/%%d.json, start from 0 index. "
                            "This is the object box output. Leave this blank "
                            "when use tracking to avoid saving the obj class "
@@ -83,13 +85,6 @@ def get_args():
                       help="load from a frozen graph")
   parser.add_argument("--log_time_and_gpu", action="store_true")
 
-  # ------ for box feature extraction
-  parser.add_argument("--get_box_feat", action="store_true",
-                      help="this will generate (num_box, 256, 7, 7) tensor for "
-                           "each frame")
-  parser.add_argument("--box_feat_path", default=None,
-                      help="output will be out_dir/$basename/%%d.npy, start "
-                      "from 0 index")
 
   parser.add_argument("--version", type=int, default=4, help="model version")
   parser.add_argument("--is_coco_model", action="store_true",
@@ -105,12 +100,10 @@ def get_args():
   parser.add_argument("--gpuid_start", default=0, type=int,
                       help="start of gpu id")
   parser.add_argument("--im_batch_size", type=int, default=1)
+  parser.add_argument("--fix_gpuid_range", action="store_true",
+                      help="for junweil.pc")
   parser.add_argument("--use_all_mem", action="store_true")
 
-  # --- for internal visualization
-  parser.add_argument("--visualize", action="store_true")
-  parser.add_argument("--vis_path", default=None)
-  parser.add_argument("--vis_thres", default=0.7, type=float)
 
   # ----------- model params
   parser.add_argument("--num_class", type=int, default=15,
@@ -220,11 +213,13 @@ def get_args():
   parser.add_argument("--add_relation_nn", action="store_true",
                       help="add relation network feature")
 
-  parser.add_argument("--test_frame_extraction", action="store_true")
-  parser.add_argument("--use_my_naming", action="store_true")
 
   # for efficient use of COCO model classes
   parser.add_argument("--use_partial_classes", action="store_true")
+
+  # ---- for multi-thread frame preprocessing
+  parser.add_argument("--prefetch", type=int, default=10,
+                      help="maximum number of batch in queue")
 
   args = parser.parse_args()
 
@@ -232,8 +227,8 @@ def get_args():
     args.is_coco_model = True
     args.partial_classes = [classname for classname in coco_obj_to_actev_obj]
 
-  assert args.gpu == args.im_batch_size  # one gpu one image
-  assert args.gpu == 1, "Currently only support single-gpu inference"
+  #assert args.gpu == args.im_batch_size  # one gpu one image
+  #assert args.gpu == 1, "Currently only support single-gpu inference"
 
   if args.is_load_from_pb:
     args.load_from = args.model_path
@@ -447,10 +442,6 @@ def check_args(args):
   assert args.video_dir is not None
   assert args.video_lst_file is not None
   assert args.frame_gap >= 1
-  if args.get_box_feat:
-    assert args.box_feat_path is not None
-    if not os.path.exists(args.box_feat_path):
-      os.makedirs(args.box_feat_path)
   #print("cv2 version %s" % (cv2.__version__)
 
 
@@ -463,12 +454,140 @@ def log_gpu_util(interval, gpuid_range):
     A function to keep track of gpu usage using nvidia-smi
   """
   global gpu_util_logs
-  gpuid_range = (0, 1)
+  #gpuid_range = (0, 1)  # for junweil.pc
   while True:
     time.sleep(interval)
     gpu_temps, gpu_utils = parse_nvidia_smi(gpuid_range)
     gpu_util_logs.extend(gpu_utils)
     gpu_temp_logs.extend(gpu_temps)
+
+
+def run_detect_and_track(args, frame_stack, sess, model, targetid2class,
+                         tracking_objs,
+                         tracker_dict, tracking_results_dict,
+                         tmp_tracking_results_dict,
+                         obj_out_dir=None,
+                         valid_frame_num=None):
+  # ignore the padded images
+  if valid_frame_num is None:
+    valid_frame_num = len(frame_stack)
+
+  resized_images, scales, frame_idxs = zip(*frame_stack)
+
+  feed_dict = model.get_feed_dict_forward_multi(resized_images)
+
+  sess_input = [model.final_boxes, model.final_labels,
+                model.final_probs, model.final_valid_indices,
+                model.fpn_box_feat]
+  # [B, num, 4], [B, num], [B, num], [B], [M, 256, 7, 7]
+  batch_boxes, batch_labels, batch_probs, valid_indices, batch_box_feats = \
+      sess.run(sess_input, feed_dict=feed_dict)
+  assert np.sum(valid_indices) == batch_box_feats.shape[0], "duh"
+
+  for b in range(valid_frame_num):
+    cur_frame = frame_idxs[b]
+
+    # [k, 4]
+    final_boxes = batch_boxes[b][:valid_indices[b]]
+    # [k]
+    final_labels = batch_labels[b][:valid_indices[b]]
+    # [k]
+    final_probs = batch_probs[b][:valid_indices[b]]
+    # [k, 256, 7, 7]
+    previous_box_num = sum(valid_indices[:b])
+    box_feats = batch_box_feats[previous_box_num:previous_box_num+valid_indices[b]]
+
+    if args.get_tracking:
+
+      assert len(box_feats) == len(final_boxes)
+
+      for tracking_obj in tracking_objs:
+        target_tracking_obs = [tracking_obj]
+
+        # will consider scale here
+        scale = scales[b]
+        detections = create_obj_infos(
+            cur_frame, final_boxes, final_probs, final_labels, box_feats,
+            targetid2class, target_tracking_obs, args.min_confidence,
+            args.min_detection_height, scale,
+            is_coco_model=args.is_coco_model,
+            coco_to_actev_mapping=coco_obj_to_actev_obj)
+        # Run non-maxima suppression.
+        boxes = np.array([d.tlwh for d in detections])
+        scores = np.array([d.confidence for d in detections])
+        indices = preprocessing.non_max_suppression(
+            boxes, args.nms_max_overlap, scores)
+        detections = [detections[i] for i in indices]
+
+        # tracking
+        tracker_dict[tracking_obj].predict()
+        tracker_dict[tracking_obj].update(detections)
+
+        # Store results
+        for track in tracker_dict[tracking_obj].tracks:
+          if not track.is_confirmed() or track.time_since_update > 1:
+            if (not track.is_confirmed()) and track.time_since_update == 0:
+              bbox = track.to_tlwh()
+              if track.track_id not in \
+                  tmp_tracking_results_dict[tracking_obj]:
+                tmp_tracking_results_dict[tracking_obj][track.track_id] = \
+                    [[cur_frame, track.track_id, bbox[0], bbox[1],
+                      bbox[2], bbox[3]]]
+              else:
+                tmp_tracking_results_dict[
+                    tracking_obj][track.track_id].append(
+                        [cur_frame, track.track_id,
+                         bbox[0], bbox[1], bbox[2], bbox[3]])
+            continue
+          bbox = track.to_tlwh()
+          if track.track_id in tmp_tracking_results_dict[tracking_obj]:
+            pred_list = tmp_tracking_results_dict[tracking_obj][
+                track.track_id]
+            for pred_data in pred_list:
+              tracking_results_dict[tracking_obj].append(pred_data)
+            tmp_tracking_results_dict[tracking_obj].pop(track.track_id,
+                                                        None)
+          tracking_results_dict[tracking_obj].append([
+              cur_frame, track.track_id, bbox[0], bbox[1], bbox[2],
+              bbox[3]])
+
+
+
+    if obj_out_dir is None:  # not saving the boxes
+
+      continue
+
+    # ---------------- get the json outputs for object detection
+
+    # scale back the box to original image size
+    final_boxes = final_boxes / scales[b]
+
+    # save as json
+    pred = []
+
+    for j, (box, prob, label) in enumerate(zip(
+        final_boxes, final_probs, final_labels)):
+      box[2] -= box[0]
+      box[3] -= box[1]  # produce x,y,w,h output
+
+      cat_id = int(label)
+      cat_name = targetid2class[cat_id]
+
+      res = {
+          "category_id": int(cat_id),
+          "cat_name": cat_name,  # [0-80]
+          "score": float(round(prob, 7)),
+          #"bbox": list(map(lambda x: float(round(x, 2)), box)),
+          "bbox": [float(round(x, 2)) for x in box],
+          "segmentation": None,
+      }
+
+      pred.append(res)
+
+    predfile = os.path.join(video_out_path, "%d.json" % (cur_frame))
+
+    with open(predfile, "w") as f:
+      json.dump(pred, f)
 
 
 if __name__ == "__main__":
@@ -477,9 +596,14 @@ if __name__ == "__main__":
   if args.log_time_and_gpu:
     gpu_log_interval = 10 # every k seconds
     start_time = time.time()
+
+    gpuid_range = (args.gpuid_start, args.gpu)
+    if args.fix_gpuid_range:
+      gpuid_range = (0, 1)
+
     gpu_check_thread = threading.Thread(
         target=log_gpu_util,
-        args=[gpu_log_interval, (args.gpuid_start, args.gpu)])
+        args=[gpu_log_interval, gpuid_range])
     gpu_check_thread.daemon = True
     gpu_check_thread.start()
 
@@ -488,9 +612,9 @@ if __name__ == "__main__":
   videolst = [os.path.join(args.video_dir, one.strip())
               for one in open(args.video_lst_file).readlines()]
 
-  if args.out_dir is not None:
-    if not os.path.exists(args.out_dir):
-      os.makedirs(args.out_dir)
+  if args.obj_out_dir is not None:
+    if not os.path.exists(args.obj_out_dir):
+      os.makedirs(args.obj_out_dir)
 
   # 2020, deal with opencv  avi video "bug":
   # https://github.com/opencv/opencv/issues/9053
@@ -502,15 +626,9 @@ if __name__ == "__main__":
   if args.use_moviepy:
     from moviepy.editor import VideoFileClip
 
-  if args.visualize:
-    from viz import draw_boxes
-
-    vis_path = args.vis_path
-    if not os.path.exists(vis_path):
-      os.makedirs(vis_path)
-
   # 1. load the object detection model
-  model = get_model(args, args.gpuid_start, controller=args.controller)
+  model = get_model(
+      args, args.gpuid_start, is_multi=True, controller=args.controller)
 
   tfconfig = tf.ConfigProto(allow_soft_placement=True)
   if not args.use_all_mem:
@@ -532,7 +650,7 @@ if __name__ == "__main__":
       elif args.use_moviepy:
         vcap = VideoFileClip(videofile, audio=False)
         frame_count = int(vcap.fps * vcap.duration)  # uh
-        vcap_iter = vcap.iter_frames()
+        vcap = vcap.iter_frames()
       else:
         try:
           vcap = cv2.VideoCapture(videofile)
@@ -567,227 +685,33 @@ if __name__ == "__main__":
 
       # videoname = os.path.splitext(os.path.basename(videofile))[0]
       videoname = os.path.basename(videofile)
-      if args.out_dir is not None:  # not saving box json to save time
-        video_out_path = os.path.join(args.out_dir, videoname)
-        if not os.path.exists(video_out_path):
-          os.makedirs(video_out_path)
+      video_obj_out_path = None
+      if args.obj_out_dir is not None:  # not saving box json to save time
+        video_obj_out_path = os.path.join(args.obj_out_dir, videoname)
+        if not os.path.exists(video_obj_out_path):
+          os.makedirs(video_obj_out_path)
 
-      # for box feature, saving them to disk if needed
-      if args.get_box_feat:
-        feat_out_path = os.path.join(args.box_feat_path, videoname)
-        if not os.path.exists(feat_out_path):
-          os.makedirs(feat_out_path)
+      video_queuer = VideoEnqueuer(
+          args, vcap, frame_count, frame_gap=args.frame_gap,
+          prefetch=args.prefetch,
+          start=True, is_moviepy=args.use_moviepy,
+          batch_size=args.im_batch_size)
+      get_batches = video_queuer.get()
 
-      # 3. read frame one by one
-      cur_frame = 0
-      vis_count = 0
-      frame_stack = []
-      while cur_frame < frame_count:
-        if args.use_moviepy:
-          suc = True
-          frame = next(vcap_iter)
-        else:
-          suc, frame = vcap.read()
-        if not suc:
-          cur_frame += 1
-          tqdm.write("warning, %s frame of %s failed" % (cur_frame, videoname))
-          continue
+      for batch in tqdm(get_batches, total=video_queuer.num_batches):
+        # batch is a list of (resized_image, scale, frame_count)
+        valid_frame_num = len(batch)
+        if len(batch) < args.im_batch_size:
+          batch += [batch[-1]] * (args.im_batch_size - len(batch))
 
-        # skip some frame if frame_gap >1
-        if cur_frame % args.frame_gap != 0:
-          cur_frame += 1
-          continue
+        run_detect_and_track(
+            args, batch, sess, model, targetid2class,
+            tracking_objs, tracker_dict, tracking_results_dict,
+            tmp_tracking_results_dict,
+            video_obj_out_path,
+            valid_frame_num=valid_frame_num)
 
-        # 4. run detection on the frame stack if there is enough
-        if args.use_moviepy:
-          # moviepy ask ffmpeg to get rgb24
-          frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-        im = frame.astype("float32")
 
-        if args.test_frame_extraction:
-          #frame_file = os.path.join(video_out_path, "%d.jpg" % cur_frame)
-          #cv2.imwrite(frame_file, im)
-          cur_frame += 1
-          continue
-
-        resized_image = resizeImage(im, args.short_edge_size, args.max_size)
-
-        scale = (resized_image.shape[0] * 1.0 / im.shape[0] + \
-                 resized_image.shape[1] * 1.0 / im.shape[1]) / 2.0
-
-        feed_dict = model.get_feed_dict_forward(resized_image)
-
-        if args.get_box_feat:
-          sess_input = [model.final_boxes, model.final_labels,
-                        model.final_probs, model.fpn_box_feat]
-
-          final_boxes, final_labels, final_probs, box_feats = sess.run(
-              sess_input, feed_dict=feed_dict)
-          assert len(box_feats) == len(final_boxes)
-          # save the box feature first
-
-          featfile = os.path.join(feat_out_path, "%d.npy" % (cur_frame))
-          np.save(featfile, box_feats)
-        elif args.get_tracking:
-
-          if args.add_mask:
-            sess_input = [model.final_boxes, model.final_labels,
-                          model.final_probs, model.fpn_box_feat,
-                          model.final_masks]
-            final_boxes, final_labels, final_probs, box_feats, final_masks = \
-                sess.run(sess_input, feed_dict=feed_dict)
-          else:
-            sess_input = [model.final_boxes, model.final_labels,
-                          model.final_probs, model.fpn_box_feat]
-            final_boxes, final_labels, final_probs, box_feats = sess.run(
-                sess_input, feed_dict=feed_dict)
-            if args.is_efficientdet:
-              # the output here is 1 - num_partial_classes
-              if args.use_partial_classes:
-                for i in range(len(final_labels)):
-                  final_labels[i] = coco_obj_class_to_id[
-                      args.partial_classes[final_labels[i] - 1]]
-              else:
-                # 1-90 to 1-80
-                for i in range(len(final_labels)):
-                  final_labels[i] = \
-                      coco_obj_class_to_id[coco_id_mapping[final_labels[i]]]
-
-          assert len(box_feats) == len(final_boxes)
-
-          for tracking_obj in tracking_objs:
-            target_tracking_obs = [tracking_obj]
-            detections = create_obj_infos(
-                cur_frame, final_boxes, final_probs, final_labels, box_feats,
-                targetid2class, target_tracking_obs, args.min_confidence,
-                args.min_detection_height, scale,
-                is_coco_model=args.is_coco_model,
-                coco_to_actev_mapping=coco_obj_to_actev_obj)
-            # Run non-maxima suppression.
-            boxes = np.array([d.tlwh for d in detections])
-            scores = np.array([d.confidence for d in detections])
-            indices = preprocessing.non_max_suppression(
-                boxes, args.nms_max_overlap, scores)
-            detections = [detections[i] for i in indices]
-
-            # tracking
-            tracker_dict[tracking_obj].predict()
-            tracker_dict[tracking_obj].update(detections)
-
-            # Store results
-            for track in tracker_dict[tracking_obj].tracks:
-              if not track.is_confirmed() or track.time_since_update > 1:
-                if (not track.is_confirmed()) and track.time_since_update == 0:
-                  bbox = track.to_tlwh()
-                  if track.track_id not in \
-                      tmp_tracking_results_dict[tracking_obj]:
-                    tmp_tracking_results_dict[tracking_obj][track.track_id] = \
-                        [[cur_frame, track.track_id, bbox[0], bbox[1],
-                          bbox[2], bbox[3]]]
-                  else:
-                    tmp_tracking_results_dict[
-                        tracking_obj][track.track_id].append(
-                            [cur_frame, track.track_id,
-                             bbox[0], bbox[1], bbox[2], bbox[3]])
-                continue
-              bbox = track.to_tlwh()
-              if track.track_id in tmp_tracking_results_dict[tracking_obj]:
-                pred_list = tmp_tracking_results_dict[tracking_obj][
-                    track.track_id]
-                for pred_data in pred_list:
-                  tracking_results_dict[tracking_obj].append(pred_data)
-                tmp_tracking_results_dict[tracking_obj].pop(track.track_id,
-                                                            None)
-              tracking_results_dict[tracking_obj].append([
-                  cur_frame, track.track_id, bbox[0], bbox[1], bbox[2],
-                  bbox[3]])
-
-        else:
-          if args.add_mask:
-            sess_input = [model.final_boxes, model.final_labels,
-                          model.final_probs, model.final_masks]
-            final_boxes, final_labels, final_probs, final_masks = sess.run(
-                sess_input, feed_dict=feed_dict)
-          else:
-            sess_input = [model.final_boxes, model.final_labels,
-                          model.final_probs]
-            final_boxes, final_labels, final_probs = sess.run(
-                sess_input, feed_dict=feed_dict)
-
-        if args.out_dir is None:
-          cur_frame += 1
-          continue
-
-        # ---------------- get the json outputs for object detection
-
-        # scale back the box to original image size
-        final_boxes = final_boxes / scale
-
-        if args.add_mask:
-          final_masks = [fill_full_mask(box, mask, im.shape[:2])
-                         for box, mask in zip(final_boxes, final_masks)]
-
-        # save as json
-        pred = []
-
-        for j, (box, prob, label) in enumerate(zip(
-            final_boxes, final_probs, final_labels)):
-          box[2] -= box[0]
-          box[3] -= box[1]  # produce x,y,w,h output
-
-          cat_id = int(label)
-          cat_name = targetid2class[cat_id]
-
-          # encode mask
-          rle = None
-          if args.add_mask:
-            final_mask = final_masks[j] # [14, 14]
-            rle = cocomask.encode(np.array(
-                final_mask[:, :, None], order="F"))[0]
-            rle["counts"] = rle["counts"].decode("ascii")
-
-          res = {
-              "category_id": int(cat_id),
-              "cat_name": cat_name,  # [0-80]
-              "score": float(round(prob, 7)),
-              #"bbox": list(map(lambda x: float(round(x, 2)), box)),
-              "bbox": [float(round(x, 2)) for x in box],
-              "segmentation": rle,
-          }
-
-          pred.append(res)
-
-        if args.use_my_naming:
-          predfile = os.path.join(
-              video_out_path,
-              "%s_F_%08d.json" % (os.path.splitext(videoname)[0], cur_frame))
-        else:
-          predfile = os.path.join(video_out_path, "%d.json" % (cur_frame))
-
-        with open(predfile, "w") as f:
-          json.dump(pred, f)
-
-        # for visualization
-        if args.visualize:
-          good_ids = [i for i in range(len(final_boxes))
-                      if final_probs[i] >= args.vis_thres]
-          final_boxes, final_labels, final_probs = final_boxes[good_ids], \
-              final_labels[good_ids], final_probs[good_ids]
-          vis_boxes = np.asarray(
-              [[box[0], box[1], box[2] + box[0], box[3] + box[1]]
-               for box in final_boxes])
-          vis_labels = ["%s_%.2f" % (targetid2class[cat_id], prob)
-                        for cat_id, prob in zip(final_labels, final_probs)]
-          newim = draw_boxes(im, vis_boxes, vis_labels,
-                             color=np.array([255, 0, 0]), font_scale=0.5,
-                             thickness=2)
-
-          vis_file = os.path.join(vis_path,
-                                  "%s_F_%08d.jpg" % (videoname, vis_count))
-          cv2.imwrite(vis_file, newim)
-          vis_count += 1
-
-        cur_frame += 1
 
       if not args.use_lijun_video_loader and not args.use_moviepy:
         vcap.release()
@@ -814,10 +738,7 @@ if __name__ == "__main__":
                   row[0], row[1], row[2], row[3], row[4], row[5])
               fw.write(line + "\n")
 
-      if args.test_frame_extraction:
-        tqdm.write(
-            "video %s got %s frames, opencv said frame count is %s" % (
-                videoname, cur_frame, frame_count))
+
   if args.log_time_and_gpu:
     end_time = time.time()
     print("total run time %s (%s), log gpu utilize every %s seconds and get "

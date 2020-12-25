@@ -35,6 +35,7 @@ We utilize state-of-the-art object detection and tracking algorithm in surveilla
 </div>
 
 ## Updates
++ [12/2020] Added [multi-thread inferencing](#multi-thread-inferencing), another \~25% speed up.
 + [12/2020] Added [multiple-image batch inferencing](#multiple-image-batch-inferencing), \~30% speed up.
 
 + [10/2020] Added experiments comparing EfficientDet and MaskRCNN on VIRAT and AVA-Kinetics [here](COMMANDS.md#10-2020-comparing-efficientdet-with-maskrcnn-on-video-datasets).
@@ -147,7 +148,26 @@ $ python obj_detect_tracking.py --model_path COCO-MaskRCNN-R50FPN2x.npz --versio
 --short_edge_size 720 --is_coco --use_lijun --im_batch_size 1 --log
 ```
 You can visualize the results according to [these instructions](#visualization).
-Speed experiments are recorded [here](./SPEED.md#122020-multiple-image-batch-processing)
+Speed experiments are recorded [here](./SPEED.md#122020-multiple-image-batch-processing).
+
+## Multi-Thread Inferencing
+
+Added queue and multi-threading to parallel CPU and GPU. Run object detection & tracking with multi-thread processing on videos:
+```
+$ python obj_detect_tracking_multi_queuer.py --model_path COCO-MaskRCNN-R50FPN2x.npz --version 2 \
+--video_dir meva_outdoor_test --video_lst_file meva_outdoor_test.lst --frame_gap 8 \
+--get_tracking --tracking_dir fpnr50_multib8thread_trackout_1280x720 --gpuid_start 0 --max_size \
+1280 --short_edge_size 720 --is_coco --use_lijun --im_batch_size 8 --log --prefetch 10
+```
+This should be 20-30% faster than single-thread. Speed experiments are recorded [here](./SPEED.md#122020-multiple-image-batch-processing).
+
+For object detection on list of images, we can have a lot more threads, similar to PyTorch's [DataLoader](https://pytorch.org/docs/stable/data.html#torch.utils.data.DataLoader):
+```
+$ python obj_detect_imgs_multi_queuer.py --model_path COCO-MaskRCNN-R50FPN2x.npz --version 2 \
+--resnet50 --img_lst imgs.lst --out_dir obj_jsons/ --max_size 1920 --short_edge_size 1080 \
+--is_coco_model --im_batch_size 8 --log --prefetch 10 --num_cpu_worker 4
+```
+
 
 ## Models
 These are the models you can use for inferencing. The original ActEv annotations can be downloaded from [here](https://next.cs.cmu.edu/data/actev-v1-drop4-yaml.tgz). I will add instruction for training and testing if requested. Click to download each model.
@@ -445,7 +465,7 @@ These are my experiences with working on this [surveillance dataset](https://act
 10. ResNeXt does not see significant improvement on this dataset.
 
 ## TODO
-+ Use Python Queue and a separate thread for frame extraction
++ ~~Use Python Queue and a separate thread for frame extraction~~ (Done!)
 + ~~Make batch_size > 1 for inferencing~~ (Done!)
 
 ## Acknowledgements

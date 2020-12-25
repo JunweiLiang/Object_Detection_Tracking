@@ -133,6 +133,17 @@ We test the multiple-image batch processing using these [commands](./README.md#m
 |b=8 frozen          |03:12 |        62.00%          |         53.37%          |
 |b=8 frozen,partial  |03:07 |        75.50%          |         62.11%          |
 
+Now with multi-threading:
+
+| RunType            | Time | GPU Median Utilization | GPU Average Utilization |
+|--------------------|------|------------------------|-------------------------|
+|b=4 var,m           |03:41 |        100.00%         |         83.24%          |
+|b=4 frozen          |02:22 |        70.50%          |         71.50%          |
+|b=4 frozen,partial,m|02:14 |        76.00%          |         75.46%          |
+|b=8 var,m           |03:29 |        100.00%         |         73.45%          |
+|b=8 frozen,m        |02:14 |        67.00%          |         63.69%          |
+|b=8 frozen,partial,m|02:08 |        99.00%          |         83.83%          |
+
 Here is the same test on a better GPU but worse CPU machine: TITAN Xp, i5-4460, SSD.
 0% median GPU means the bottleneck is in CPU processing.
 
@@ -147,3 +158,14 @@ Here is the same test on a better GPU but worse CPU machine: TITAN Xp, i5-4460, 
 |b=8 var             |04:29 |         8.00%          |         40.88%          |
 |b=8 frozen          |03:15 |        00.00%          |         34.32%          |
 |b=8 frozen,partial  |03:07 |         2.50%          |         29.11%          |
+
+Now with multi-threading:
+
+| RunType            | Time | GPU Median Utilization | GPU Average Utilization |
+|--------------------|------|------------------------|-------------------------|
+|b=4 var,m           |03:08 |        38.00%          |         46.83%          |
+|b=4 frozen          |01:53 |        90.00%          |         76.00%          |
+|b=4 frozen,partial,m|01:40 |        66.00%          |         64.56%          |
+|b=8 var,m           |03:08 |        31.00%          |         46.78%          |
+|b=8 frozen,m        |01:51 |        46.00%          |         45.90%          |
+|b=8 frozen,partial,m|01:45 |        94.00%          |         81.50%          |
