@@ -169,3 +169,18 @@ Now with multi-threading:
 |b=8 var,m           |03:08 |        31.00%          |         46.78%          |
 |b=8 frozen,m        |01:51 |        46.00%          |         45.90%          |
 |b=8 frozen,partial,m|01:45 |        94.00%          |         81.50%          |
+
+Here we compare the machine-wise utilization graph for "b=1 frozen,partial" and "multi-threading b=8 frozen,partial" on the GTX 1070 TI machine:
+
+<div align="center">
+  <div style="">
+      <img src="images/util_log_b1partial.png"/>
+      <p>b=1 frozen,partial</p>
+  </div>
+
+  <div style="">
+      <img src="images/util_log_b8multithread.png"/>
+      <p>b=8 frozen,partial,m</p>
+  </div>
+
+</div>

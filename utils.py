@@ -5,8 +5,11 @@
 import random
 import itertools
 import math
+import threading
 import sys
+import time
 import os
+import psutil
 import operator
 import cv2
 #import commands
@@ -86,6 +89,7 @@ class FIFO_ME:
 # gpuid_range is a tuple of (gpu_startid, gpu_num)
 def parse_nvidia_smi(gpuid_range):
   nvi_out = commands.getoutput("nvidia-smi")
+  # ['|  0%   41C    P8     9W / 180W |     26MiB /  8117MiB |      0%      Default |']
   gpu_info_blocks = get_gpu_info_block(nvi_out)[
       gpuid_range[0]:(gpuid_range[0] + gpuid_range[1])]
   # num_gpu = len(gpu_info_blocks)  # the ones we care
@@ -95,7 +99,55 @@ def parse_nvidia_smi(gpuid_range):
   utilizations = [float(
       info_block.strip().strip("|").split()[-2].strip("%")) / 100.0
                   for info_block in gpu_info_blocks]
-  return temps, utilizations
+  # in mb
+  memories = [float(
+      info_block.strip().strip("|").split()[-6].strip(" MiB"))
+              for info_block in gpu_info_blocks]
+  return temps, utilizations, memories
+
+class PerformanceLogger(object):
+
+  def __init__(self, gpu_ids, interval=10.):
+    self.gpu_ids = gpu_ids
+    self.interval = interval  # in seconds
+    self.logs = {
+        "cpu_utilization": [],
+        "gpu_utilization": [],
+        "gpu_temperature": [],
+        "gpu_memory": [],
+        "ram_used": [],
+        "timing": [],
+    }
+    self.mb = 1024 * 1024.
+    # can use process since we need shared memory for the logs
+    self.performance_check_thread = threading.Thread(
+        target=self.log_util_fn)
+    self.performance_check_thread.daemon = True
+
+  def log_util_fn(self):
+    while True:
+      time.sleep(self.interval)
+
+      self.logs["timing"].append(time.time())
+
+      gpu_temps, gpu_utils, gpu_mems = parse_nvidia_smi(self.gpu_ids)
+      # https://psutil.readthedocs.io/en/latest/#psutil.cpu_percent
+      cpu_percent = psutil.cpu_percent(interval=0.1, percpu=False)  # already %
+      ram_used = psutil.virtual_memory().used / self.mb  # in MB
+
+      # save the average of this instant
+      self.logs["gpu_utilization"].append(np.mean(gpu_utils) * 100.)
+      self.logs["gpu_temperature"].append(np.mean(gpu_temps))
+      self.logs["gpu_memory"].append(np.mean(gpu_mems))
+      self.logs["cpu_utilization"].append(cpu_percent)
+      self.logs["ram_used"].append(ram_used)
+
+  def start(self):
+    self.performance_check_thread.start()
+
+  def end(self):
+    self.performance_check_thread.join(0)
+
 
 def get_gpu_info_block(nvi_out):
   nvi_out = nvi_out.split("\n")

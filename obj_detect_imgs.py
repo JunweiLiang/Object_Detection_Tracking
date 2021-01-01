@@ -38,6 +38,7 @@ from nn import fill_full_mask
 from utils import get_op_tensor_name
 from utils import parse_nvidia_smi
 from utils import sec2time
+from utils import PerformanceLogger
 
 import pycocotools.mask as cocomask
 
@@ -80,7 +81,9 @@ def get_args():
   parser.add_argument("--is_load_from_pb", action="store_true",
                       help="load from a frozen graph")
   parser.add_argument("--log_time_and_gpu", action="store_true")
-
+  parser.add_argument("--util_log_interval", type=float, default=10.)
+  parser.add_argument("--save_util_log_to", default=None,
+                      help="save to a json for generating figures")
 
   parser.add_argument("--version", type=int, default=4, help="model version")
   parser.add_argument("--is_coco_model", action="store_true",
@@ -96,6 +99,8 @@ def get_args():
   parser.add_argument("--gpuid_start", default=0, type=int,
                       help="start of gpu id")
   parser.add_argument("--im_batch_size", type=int, default=1)
+  parser.add_argument("--fix_gpuid_range", action="store_true",
+                      help="for junweil.pc")
   parser.add_argument("--use_all_mem", action="store_true")
 
   # ----------- model params
@@ -407,33 +412,21 @@ def initialize(config, sess):
       raise Exception("Model not exists")
 
 
-gpu_util_logs = []
-gpu_temp_logs = []
-
-
-def log_gpu_util(interval, gpuid_range):
-  """
-    A function to keep track of gpu usage using nvidia-smi
-  """
-  global gpu_util_logs
-  while True:
-    time.sleep(interval)
-    gpu_temps, gpu_utils = parse_nvidia_smi(gpuid_range)
-    gpu_util_logs.extend(gpu_utils)
-    gpu_temp_logs.extend(gpu_temps)
-
 
 if __name__ == "__main__":
   args = get_args()
 
   if args.log_time_and_gpu:
-    gpu_log_interval = 10 # every k seconds
     start_time = time.time()
-    gpu_check_thread = threading.Thread(
-        target=log_gpu_util,
-        args=[gpu_log_interval, (args.gpuid_start, args.gpu)])
-    gpu_check_thread.daemon = True
-    gpu_check_thread.start()
+
+    gpuid_range = (args.gpuid_start, args.gpu)
+    if args.fix_gpuid_range:
+      gpuid_range = (0, 1)
+
+    performance_logger = PerformanceLogger(
+        gpuid_range,
+        interval=args.util_log_interval)
+    performance_logger.start()
 
 
   imglst = [line.strip()
@@ -576,14 +569,22 @@ if __name__ == "__main__":
 
   if args.log_time_and_gpu:
     end_time = time.time()
-    print("total run time %s (%s), log gpu utilize every %s seconds and get "
-          "median %.2f%% and average %.2f%%. GPU temperature median %.2f and "
-          "average %.2f (C)" % (
+    performance_logger.end()
+    logs = performance_logger.logs
+    print("total run time %s (%s), log utilize every %s seconds and get "
+          "GPU util median %.2f%% and average %.2f%%. GPU temperature "
+          "average %.2f (C), CPU util median %.2f%%" % (
               sec2time(end_time - start_time),
               end_time - start_time,
-              gpu_log_interval,
-              np.median(gpu_util_logs)*100,
-              np.mean(gpu_util_logs)*100,
-              np.median(gpu_temp_logs),
-              np.mean(gpu_temp_logs)))
+              args.util_log_interval,
+              np.median(logs["gpu_utilization"]),
+              np.mean(logs["gpu_utilization"]),
+              np.mean(logs["gpu_temperature"]),
+              np.median(logs["cpu_utilization"]),))
+
+    if args.save_util_log_to is not None:
+
+      with open(args.save_util_log_to, "w") as f:
+        json.dump(logs, f)
+      print("saved util log to %s" % args.save_util_log_to)
   cv2.destroyAllWindows()
