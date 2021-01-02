@@ -566,7 +566,7 @@ def run_detect_and_track(args, frame_stack, sess, model, targetid2class,
 
       pred.append(res)
 
-    predfile = os.path.join(video_out_path, "%d.json" % (cur_frame))
+    predfile = os.path.join(obj_out_dir, "%d.json" % (cur_frame))
 
     with open(predfile, "w") as f:
       json.dump(pred, f)

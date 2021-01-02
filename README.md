@@ -169,6 +169,7 @@ $ python obj_detect_imgs_multi_queuer.py --model_path COCO-MaskRCNN-R50FPN2x.npz
 ```
 
 
+
 ## Models
 These are the models you can use for inferencing. The original ActEv annotations can be downloaded from [here](https://next.cs.cmu.edu/data/actev-v1-drop4-yaml.tgz). I will add instruction for training and testing if requested. Click to download each model.
 
@@ -467,6 +468,7 @@ These are my experiences with working on this [surveillance dataset](https://act
 ## TODO
 + ~~Use Python Queue and a separate thread for frame extraction~~ (Done!)
 + ~~Make batch_size > 1 for inferencing~~ (Done!)
++ Make batch_size > 1 for training
 
 ## Acknowledgements
 I made this code by studying the nice example in [Tensorpack](https://github.com/tensorpack/tensorpack/tree/master/examples/FasterRCNN). The EfficientDet part is modified from the official [repo](https://github.com/google/automl/tree/master/efficientdet).
