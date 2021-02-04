@@ -34,7 +34,11 @@ if __name__ == "__main__":
 
 		data = {} # frame -> boxes
 		for detfile in detfiles:
-			cat_name = detfile.split("/")[-2]
+			#cat_name = detfile.split("/")[-2] # this does not work under windows
+			# 1. norm the path, in windows "/" will be converted to "\"
+			detfile = os.path.normpath(detfile)
+			# 2. split the path using os specific separator
+			cat_name = detfile.split(os.sep)[-2]
 			for line in open(detfile, "r").readlines():
 				# note the frameIdx start from 1
 				frameIdx, track_id, left, top, width, height, conf, _, _, _ = line.strip().split(",")
