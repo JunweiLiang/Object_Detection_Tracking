@@ -68,10 +68,12 @@ Conclusions:
 
 Note that I didn't have time to run these experiments repeatly so I expect the numbers to have large variances.
 
+### Freezing the model
+
 To freeze the model into a .pb file:
 ```
 $ python main.py nothing nothing --mode pack --pack_model_path obj_v3.pb \
---pack_modelconfig_path obj_v3.config.json --load_from obj_v3_model/ --note obj_v3 --num_class 15 \
+--load_from obj_v3_model/ --num_class 15 \
 --diva_class3 --rpn_batch_size 256 --frcnn_batch_size 512 --rpn_test_post_nms_topk 1000 --is_fpn \
 --use_dilation --max_size 1920 --short_edge_size 1080
 ```
