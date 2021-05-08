@@ -1,6 +1,7 @@
 # coding=utf-8
 """
   run object detection and tracking inference
+  tracking uses https://github.com/Zhongdao/Towards-Realtime-MOT
 """
 
 import argparse
@@ -44,11 +45,12 @@ from utils import PerformanceLogger
 import pycocotools.mask as cocomask
 
 # tracking stuff
-from deep_sort import nn_matching
-from deep_sort.detection import Detection
-from deep_sort.tracker import Tracker
+#from deep_sort import nn_matching
+#from deep_sort.detection import Detection
+#from deep_sort.tracker import Tracker
 from application_util import preprocessing
-from deep_sort.utils import create_obj_infos,linear_inter_bbox,filter_short_objs
+from deep_sort.utils import linear_inter_bbox
+from tmot.multitracker import JDETracker
 
 # for mask
 import pycocotools.mask as cocomask
@@ -148,33 +150,27 @@ def get_args():
   parser.add_argument("--tracking_objs", default="Person,Vehicle",
                       help="Objects to be tracked, default are Person and "
                            "Vehicle")
-  parser.add_argument("--min_confidence", default=0.8, type=float,
+  parser.add_argument("--min_confidence", default=0.5, type=float,
                       help="Detection confidence threshold. Disregard all "
                            "detections that have a confidence lower than this "
                            "value.")
-  parser.add_argument("--min_detection_height", default=0, type=int,
-                      help="Threshold on the detection bounding box height. "
-                           "Detections with height smaller than this value are "
-                           "disregarded")
-  # this does not make a big difference
   parser.add_argument("--nms_max_overlap", default=0.5, type=float,
                       help="Non-maxima suppression threshold: Maximum detection"
                            " overlap.")
+  parser.add_argument("--track_max_second_lost", type=float, default=8.,
+                      help="track is considered lost after this seconds")
   parser.add_argument("--emb_agg_method", default="max",
                       help="avg / max pooling / spatial")
+  parser.add_argument("--emb_max_dist", type=float, default=0.7)
+  parser.add_argument("--iou_max_dist1", type=float, default=0.9)
+  parser.add_argument("--iou_max_dist2", type=float, default=0.9)
+  parser.add_argument("--emb_smooth_alpha", type=float, default=0.9)
 
-  parser.add_argument("--max_iou_distance", type=float, default=0.9,
-                      help="Iou distance for tracker.")
-  parser.add_argument("--max_cosine_distance", type=float, default=0.7,
-                      help="Gating threshold for cosine distance metric (object"
-                           " appearance).")
-  # nn_budget smaller more tracks
-  parser.add_argument("--nn_budget", type=int, default=60,
-                      help="Maximum size of the appearance descriptors gallery."
-                           " If None, no budget is enforced.")
+  parser.add_argument("--use_kf_box_in_tracks", action="store_true",
+                      help="save with KF box instead of original detection box")
+  parser.add_argument("--no_inter_box", action="store_true",
+                      help="no interpolation of boxes")
 
-  parser.add_argument("--save_det_in_tracks", action="store_true",
-                      help="save all detections into tracking results")
 
   parser.add_argument("--bupt_exp", action="store_true",
                       help="activity box experiemnt")
@@ -457,10 +453,43 @@ def check_args(args):
   #print("cv2 version %s" % (cv2.__version__)
 
 
+def preprocess_detections(final_boxes, final_probs, final_labels,
+                          box_feats, targetid2class, tracking_objs, min_confidence,
+                          scale, is_coco_model=False,
+                          coco_to_actev_mapping=None):
+
+  # tracking_objs is a single item
+  detections = []
+  tracking_boxes = final_boxes / scale
+  for j, (box, prob, label) in enumerate(zip(tracking_boxes, final_probs, final_labels)):
+    cat_name = targetid2class[label]
+    if is_coco_model:
+      if cat_name not in coco_to_actev_mapping:
+        continue
+      else:
+        cat_name = coco_to_actev_mapping[cat_name]
+
+    confidence_socre = float(round(prob, 7))
+    if cat_name not in tracking_objs or confidence_socre < min_confidence:
+      continue
+
+    box[2] -= box[0]
+    box[3] -= box[1]  # x, y, w, h
+    avg_feat = box_feats[j]
+    if len(avg_feat.shape) > 2:  # [C, H, W]
+      avg_feat = np.mean(box_feats[j], axis=(1, 2))
+
+    #norm_feat = avg_feat / np.linalg.norm(avg_feat)  # will be normed later
+
+    # xywh, conf, feature
+
+    detections.append((box, confidence_socre, avg_feat))
+
+  return detections
+
 def run_detect_and_track(args, frame_stack, sess, model, targetid2class,
                          tracking_objs,
                          tracker_dict, tracking_results_dict,
-                         tmp_tracking_results_dict,
                          obj_out_dir=None,
                          valid_frame_num=None):
   # ignore the padded images
@@ -479,6 +508,7 @@ def run_detect_and_track(args, frame_stack, sess, model, targetid2class,
       sess.run(sess_input, feed_dict=feed_dict)
   assert np.sum(valid_indices) == batch_box_feats.shape[0], "duh"
 
+
   if len(batch_box_feats.shape) > 2:
     # use the 256 dim as embedding
     if args.emb_agg_method == "avg":
@@ -496,11 +526,6 @@ def run_detect_and_track(args, frame_stack, sess, model, targetid2class,
 
 
 
-  # use the spatial 7x7 as embedding
-  #batch_box_feats = np.mean(batch_box_feats, axis=1)
-  # [8*100, 49]
-  #batch_box_feats = np.reshape(batch_box_feats, (batch_box_feats.shape[0], -1))
-
   for b in range(valid_frame_num):
     cur_frame = frame_idxs[b]
 
@@ -510,7 +535,7 @@ def run_detect_and_track(args, frame_stack, sess, model, targetid2class,
     final_labels = batch_labels[b][:valid_indices[b]]
     # [k]
     final_probs = batch_probs[b][:valid_indices[b]]
-    # [k, 256, 7, 7]
+    # [k, C]
     previous_box_num = sum(valid_indices[:b])
     box_feats = batch_box_feats[previous_box_num:previous_box_num+valid_indices[b]]
 
@@ -519,66 +544,43 @@ def run_detect_and_track(args, frame_stack, sess, model, targetid2class,
       assert len(box_feats) == len(final_boxes)
 
       for tracking_obj in tracking_objs:
-        target_tracking_obs = [tracking_obj]
 
         # will consider scale here
         scale = scales[b]
-        detections = create_obj_infos(
-            cur_frame, final_boxes, final_probs, final_labels, box_feats,
-            targetid2class, target_tracking_obs, args.min_confidence,
-            args.min_detection_height, scale,
+        # xywh, conf, feature
+        detections = preprocess_detections(
+            final_boxes, final_probs, final_labels, box_feats,
+            targetid2class, [tracking_obj], args.min_confidence,
+            scale,
             is_coco_model=args.is_coco_model,
             coco_to_actev_mapping=coco_obj_to_actev_obj)
 
-        if args.save_det_in_tracks:
-          for det in detections:
-            bbox = det.to_tlwh()
-            tracking_results_dict[tracking_obj].append([
-                cur_frame, -1, bbox[0], bbox[1], bbox[2],
-                bbox[3]])
+
         # Run non-maxima suppression.
-        boxes = np.array([d.tlwh for d in detections])
-        scores = np.array([d.confidence for d in detections])
+        boxes = np.array([d[0] for d in detections])
+        scores = np.array([d[1] for d in detections])
         indices = preprocessing.non_max_suppression(
             boxes, args.nms_max_overlap, scores)
+
         detections = [detections[i] for i in indices]
 
+
         # tracking
-        tracker_dict[tracking_obj].predict()
-        tracker_dict[tracking_obj].update(detections)
+        output_stracks = tracker_dict[tracking_obj].update(detections)
 
         # Store results
-        for track in tracker_dict[tracking_obj].tracks:
-          if not track.is_confirmed() or track.time_since_update > 1:
-            if (not track.is_confirmed()) and track.time_since_update == 0:
-              bbox = track.to_tlwh()
-              if track.track_id not in \
-                  tmp_tracking_results_dict[tracking_obj]:
-                tmp_tracking_results_dict[tracking_obj][track.track_id] = \
-                    [[cur_frame, track.track_id, bbox[0], bbox[1],
-                      bbox[2], bbox[3]]]
-              else:
-                tmp_tracking_results_dict[
-                    tracking_obj][track.track_id].append(
-                        [cur_frame, track.track_id,
-                         bbox[0], bbox[1], bbox[2], bbox[3]])
-            continue
-          bbox = track.to_tlwh()
-          if track.track_id in tmp_tracking_results_dict[tracking_obj]:
-            pred_list = tmp_tracking_results_dict[tracking_obj][
-                track.track_id]
-            for pred_data in pred_list:
-              tracking_results_dict[tracking_obj].append(pred_data)
-            tmp_tracking_results_dict[tracking_obj].pop(track.track_id,
-                                                        None)
+        for track in output_stracks:
+          if args.use_kf_box_in_tracks:
+            tlwh = track.tlwh
+          else:
+            tlwh = track.cur_det_tlwh
+
+          track_id = track.track_id
           tracking_results_dict[tracking_obj].append([
-              cur_frame, track.track_id, bbox[0], bbox[1], bbox[2],
-              bbox[3]])
-
-
+              cur_frame, track_id, tlwh[0], tlwh[1], tlwh[2],
+              tlwh[3]])
 
     if obj_out_dir is None:  # not saving the boxes
-
       continue
 
     # ---------------- get the json outputs for object detection
@@ -695,16 +697,23 @@ if __name__ == "__main__":
       # initialize tracking module
       if args.get_tracking:
         tracking_objs = args.tracking_objs.split(",")
+
         tracker_dict = {}
+
         tracking_results_dict = {}
-        tmp_tracking_results_dict = {}
+
         for tracking_obj in tracking_objs:
-          metric = nn_matching.NearestNeighborDistanceMetric(
-              "cosine", args.max_cosine_distance, args.nn_budget)
-          tracker_dict[tracking_obj] = Tracker(
-              metric, max_iou_distance=args.max_iou_distance)
+          #metric = nn_matching.NearestNeighborDistanceMetric(
+          #    "cosine", args.max_cosine_distance, args.nn_budget)
+          tracker_dict[tracking_obj] = JDETracker(
+              args.min_confidence, args.track_max_second_lost,
+              args.emb_max_dist,
+              args.iou_max_dist1,
+              args.iou_max_dist2,
+              args.emb_smooth_alpha,
+              frame_gap=args.frame_gap,
+              frame_rate=30.0)
           tracking_results_dict[tracking_obj] = []
-          tmp_tracking_results_dict[tracking_obj] = {}
 
       # videoname = os.path.splitext(os.path.basename(videofile))[0]
       videoname = os.path.basename(videofile)
@@ -721,6 +730,7 @@ if __name__ == "__main__":
           batch_size=args.im_batch_size)
       get_batches = video_queuer.get()
 
+
       for batch in tqdm(get_batches, total=video_queuer.num_batches):
         # batch is a list of (resized_image, scale, frame_count)
         valid_frame_num = len(batch)
@@ -730,7 +740,6 @@ if __name__ == "__main__":
         run_detect_and_track(
             args, batch, sess, model, targetid2class,
             tracking_objs, tracker_dict, tracking_results_dict,
-            tmp_tracking_results_dict,
             video_obj_out_path,
             valid_frame_num=valid_frame_num)
 
@@ -745,6 +754,7 @@ if __name__ == "__main__":
           output_dir = os.path.join(args.tracking_dir, videoname, tracking_obj)
           if not os.path.exists(output_dir):
             os.makedirs(output_dir)
+
           output_file = os.path.join(
               output_dir, "%s.txt" % (os.path.splitext(videoname))[0])
 
@@ -753,17 +763,21 @@ if __name__ == "__main__":
           # print(len(tracking_results)
           tracking_data = np.asarray(tracking_results)
           # print(tracking_data.shape
-          tracking_data = linear_inter_bbox(tracking_data, args.frame_gap)
-          tracking_data = filter_short_objs(tracking_data)
+          if not args.no_inter_box:
+            tracking_data = linear_inter_bbox(tracking_data, args.frame_gap)
           tracking_results = tracking_data.tolist()
-          track_num.append(
-              (tracking_obj, len({c[1]:1 for c in tracking_results})))
           with open(output_file, "w") as fw:
             for row in tracking_results:
               line = "%d,%d,%.2f,%.2f,%.2f,%.2f,1,-1,-1,-1" % (
                   row[0], row[1], row[2], row[3], row[4], row[5])
               fw.write(line + "\n")
+
+          # reset tracker
+          tracker_dict[tracking_obj].reset()
+          track_num.append(
+              (tracking_obj, len({c[1]:1 for c in tracking_results})))
         print("Track num %s" % (track_num))
+
 
 
   if args.log_time_and_gpu:

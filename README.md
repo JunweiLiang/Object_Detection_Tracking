@@ -35,6 +35,7 @@ We utilize state-of-the-art object detection and tracking algorithm in surveilla
 </div>
 
 ## Updates
++ [05/2021] Added [TMOT](https://github.com/Zhongdao/Towards-Realtime-MOT) tracking and single video ReID. [Instruction](#tracking-with-tmot-algo-and-ReID)
 + [12/2020] Added [multi-thread inferencing](#multi-thread-inferencing), another \~25% speed up.
 + [12/2020] Added [multiple-image batch inferencing](#multiple-image-batch-inferencing), \~30% speed up.
 
@@ -167,7 +168,25 @@ $ python obj_detect_imgs_multi_queuer.py --model_path COCO-MaskRCNN-R50FPN2x.npz
 --resnet50 --img_lst imgs.lst --out_dir obj_jsons/ --max_size 1920 --short_edge_size 1080 \
 --is_coco_model --im_batch_size 8 --log --prefetch 10 --num_cpu_worker 4
 ```
+## Tracking with TMOT Algo and ReID
+An alternative to deep SORT. This also uses Kalman filter. Checkout their [paper](https://arxiv.org/pdf/1909.12605v1.pdf).
 
+Run! Note that this by default outputs original detection boxes instead of KF predicted/smoothed boxes.
+```
+$ python obj_detect_tracking_multi_queuer_tmot.py --model_path COCO-MaskRCNN-R50FPN2x.npz --version 2 \
+--video_dir meva_outdoor_test --video_lst_file meva_outdoor_test.lst --frame_gap 8 \
+--get_tracking --tracking_dir fpnr50_multib8thread_trackout_1280x720_tmot --gpuid_start 0 --max_size \
+1280 --short_edge_size 720 --is_coco --use_lijun --im_batch_size 8 --log --prefetch 10
+```
+
+If you want less ID switches (10-20% less), you can run ReID (Person & Vehicle) again with the tracking results:
+```
+$ python single_video_reid.py fpnr50_multib8thread_trackout_1280x720_tmot/ meva_outdoor_test.lst \
+meva_outdoor_test/ fpnr50_multib8thread_trackout_1280x720_tmot_reid/ --gpuid 0 \
+--vehicle_reid_model reid_models/vehicle_reid_res101.pth \
+--person_reid_model reid_models/person_reid_osnet_market.pth --use_lijun
+```
+We use person-ReID model trained by the [TorchReID repo](https://kaiyangzhou.github.io/deep-person-reid/MODEL_ZOO) and vehicle-ReID model from the winner of AI City Challenge 2021 of [this repo](https://github.com/KevinQian97/ELECTRICITY-MTMC).
 
 
 ## Models

@@ -2155,8 +2155,8 @@ class Mask_RCNN_FPN_multi():
           self.fastrcnn_2fc_head_class_agnostic(
               roi_feature_fastrcnn, config.num_class, scope="fastrcnn")
     else:
-      # (N,num_class), (N, num_class - 1, 4)
-      fastrcnn_label_logits, fastrcnn_box_logits = self.fastrcnn_2fc_head(
+      # (N,num_class), (N, num_class - 1, 4), (N, 1024)
+      fastrcnn_label_logits, fastrcnn_box_logits, box_embedding = self.fastrcnn_2fc_head(
           roi_feature_fastrcnn, config.num_class, scope="fastrcnn")
 
     if config.freeze_fastrcnn:
@@ -2370,6 +2370,11 @@ class Mask_RCNN_FPN_multi():
       # [M, 256, 7, 7]
       fpn_box_feat = self.multilevel_roi_align(
           p23456[:4], final_boxes_with_batchidxs, 7)
+      # TODO: directly get box_embedding from before with nms indices
+      #_, _, box_embedding = self.fastrcnn_2fc_head(
+      #    fpn_box_feat, config.num_class, scope="fastrcnn")
+
+      #self.fpn_box_feat = tf.identity(box_embedding, name="fpn_box_feat")
       self.fpn_box_feat = tf.identity(fpn_box_feat, name="fpn_box_feat")
 
       if config.add_mask:
@@ -2718,7 +2723,7 @@ class Mask_RCNN_FPN_multi():
 
         box_regression.set_shape([None, num_class-1, 4])
 
-    return classification, box_regression
+    return classification, box_regression, hidden
 
   def conv_frcnn_head(self, feature, fc_dim, conv_dim, num_conv, use_gn=False):
     l = feature

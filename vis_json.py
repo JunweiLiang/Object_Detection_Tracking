@@ -21,6 +21,10 @@ parser.add_argument("despath")
 parser.add_argument("--score_thres", default=0.0, type=float)
 parser.add_argument("--show_frame_num", action="store_true")
 parser.add_argument("--show_only_result_frame", action="store_true")
+parser.add_argument("--slow_down", default=None, type=float,
+                    help="slow down the bounding box, for demoing slow methods")
+parser.add_argument("--only_every", default=None, type=int,
+                    help="only showing every k frames")
 
 PALETTE_HEX = [
     "#000000", "#FFFF00", "#1CE6FF", "#FF34FF", "#FF4A46", "#008941", "#006FA6",
@@ -194,10 +198,11 @@ def draw_boxes(im, boxes, labels=None, colors=None, font_scale=0.6,
 
       if bottom_text:
         cv2.putText(im, label, (box[0] + 2, box[3] - 4 + offset),
-                    FONT, FONT_SCALE, color=best_color)
+                    FONT, FONT_SCALE, color=best_color, thickness=font_thick)
       else:
         cv2.putText(im, label, (textbox.x1, textbox.y2 - offset),
-                    FONT, FONT_SCALE, color=best_color) #, lineType=cv2.LINE_AA)
+                    FONT, FONT_SCALE, color=best_color, thickness=font_thick)
+        #, lineType=cv2.LINE_AA)
     # expand the box on y axis for overlapping results
     offset = 0
     if offsets is not None:
@@ -233,10 +238,20 @@ if __name__ == "__main__":
       os.makedirs(target_path)
 
     actual_count = 0
-    for frame in frames:
+    for t, frame in enumerate(frames):
       filename = os.path.splitext(os.path.basename(frame))[0]
       frameIdx = int(filename.split("_F_")[-1])
-      jsonfile = os.path.join(args.jsonpath, "%s.json"%filename)
+
+      jsonfile = os.path.join(args.jsonpath, "%s.json" % filename)
+
+      if args.slow_down is not None:
+        frameIdx = int(frameIdx - args.slow_down * frameIdx)
+        jsonfile = os.path.join(
+            args.jsonpath, "%s_F_%08d.json" % (videoname, frameIdx))
+
+      if args.only_every is not None:
+        if t % args.only_every != 0:
+          continue
 
       boxes = []
       labels = []
@@ -283,17 +298,19 @@ if __name__ == "__main__":
 
       ori_im = cv2.imread(frame, cv2.IMREAD_COLOR)
 
-      new_im = draw_boxes(ori_im, boxes, labels, box_colors, font_scale=0.8,
-                          font_thick=10, box_thick=2, bottom_text=False)
+      new_im = draw_boxes(ori_im, boxes, labels, box_colors, font_scale=1.0,
+                          font_thick=3, box_thick=3, bottom_text=False)
 
       if args.show_frame_num:
         # write the frame idx
         cv2.putText(new_im, "# %d" % frameIdx,
                     (0, 20), cv2.FONT_HERSHEY_SIMPLEX,
                     1, (0, 255, 0), 2)
-      if args.show_only_result_frame:
+
+      if args.show_only_result_frame or args.only_every is not None:
         filename = "%08d" % actual_count
         actual_count += 1
+
       target_file = os.path.join(target_path, "%s.jpg" % filename)
 
       cv2.imwrite(target_file, new_im)

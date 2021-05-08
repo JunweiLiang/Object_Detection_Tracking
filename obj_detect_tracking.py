@@ -800,6 +800,8 @@ if __name__ == "__main__":
           tracking_data = linear_inter_bbox(tracking_data, args.frame_gap)
           tracking_data = filter_short_objs(tracking_data)
           tracking_results = tracking_data.tolist()
+          #print("Total %s: %s" % (
+          #    tracking_obj, len({c[1]:1 for c in tracking_results})))
           with open(output_file, "w") as fw:
             for row in tracking_results:
               line = "%d,%d,%.2f,%.2f,%.2f,%.2f,1,-1,-1,-1" % (

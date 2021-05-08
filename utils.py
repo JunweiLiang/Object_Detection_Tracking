@@ -41,6 +41,46 @@ from pycocotools.cocoeval import COCOeval
 from generate_anchors import generate_anchors
 
 
+def tlwh_intersection(tlwh1, tlwh2):
+  # compute intersection area / area of tlwh2
+  box1_left, box1_top, box1_w, box1_h = tlwh1
+  box2_left, box2_top, box2_w, box2_h = tlwh2
+
+  box1_bottom, box1_right = box1_left + box1_w, box1_top + box1_h
+  box2_bottom, box2_right = box2_left + box2_w, box2_top + box2_h
+
+  tlwh2_area = box2_w * box2_h
+
+  tlbr1 = [box1_left, box1_top, box1_bottom, box1_right]
+  tlbr2 = [box2_left, box2_top, box2_bottom, box2_right]
+
+
+  xx1 = np.maximum(tlbr1[0], tlbr2[0])
+  yy1 = np.maximum(tlbr1[1], tlbr2[1])
+  xx2 = np.minimum(tlbr1[2], tlbr2[2])
+  yy2 = np.minimum(tlbr1[3], tlbr2[3])
+
+  w = np.maximum(0, xx2 - xx1)
+  h = np.maximum(0, yy2 - yy1)
+
+  return (w * h) / tlwh2_area
+
+
+def expand_tlwh(tlwh, w_p=0.1, h_p=0.1):
+  # expand tlwh box by width portion (0.1) and height
+  left, top, width, height = tlwh
+  expanded_width = width * (1. + w_p)
+  expanded_height = height * (1. + h_p)
+  new_left = left - width * w_p * 0.5
+  new_top = top - height * h_p * 0.5
+  return [new_left, new_top, expanded_width, expanded_height]
+
+def parse_meva_clip_name(clip_name):
+  # assuming no appendix
+  date, start_time, end_time, location, camera = clip_name.split(".")
+  return date, end_time.split("-")[0]
+
+
 class Summary():
   def __init__(self):
     self.lines = []
@@ -90,8 +130,8 @@ class FIFO_ME:
 def parse_nvidia_smi(gpuid_range):
   nvi_out = commands.getoutput("nvidia-smi")
   # ['|  0%   41C    P8     9W / 180W |     26MiB /  8117MiB |      0%      Default |']
-  gpu_info_blocks = get_gpu_info_block(nvi_out)[
-      gpuid_range[0]:(gpuid_range[0] + gpuid_range[1])]
+  gpu_info_blocks = get_gpu_info_block(nvi_out)
+  gpu_info_blocks = gpu_info_blocks[gpuid_range[0]:(gpuid_range[0] + gpuid_range[1])]
   # num_gpu = len(gpu_info_blocks)  # the ones we care
   # all are a list of
   temps = [float(info_block.strip().strip("|").split()[1].strip("C"))
@@ -155,7 +195,7 @@ def get_gpu_info_block(nvi_out):
   end_idx = -1
   for i, line in enumerate(nvi_out):
     if line.startswith("|====="):
-      start_idx = i+1
+      start_idx = i + 1
       break
   for i, line in enumerate(nvi_out):
     if line.startswith("     "):
@@ -164,7 +204,7 @@ def get_gpu_info_block(nvi_out):
   assert (start_idx >= 0) and (end_idx >= 0), nvi_out
   # each gpu contains two line
   gpu_info_blocks = []
-  for i in range(start_idx, end_idx, 3):
+  for i in range(start_idx, end_idx, 4):
     # nvi_out[i]:"|   0  GeForce GTX TIT...  Off  | 00000000:01:00.0 Off |
     #                N/A |"
     # nvi_out[i+1]: "| 47%   81C    P2    87W / 250W |  10547MiB / 12205MiB |

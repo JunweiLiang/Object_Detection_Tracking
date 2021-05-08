@@ -40,9 +40,11 @@ if __name__ == "__main__":
 			# 2. split the path using os specific separator
 			cat_name = detfile.split(os.sep)[-2]
 			for line in open(detfile, "r").readlines():
-				# note the frameIdx start from 1
+				# note the frameIdx start from 1?
 				frameIdx, track_id, left, top, width, height, conf, _, _, _ = line.strip().split(",")
-				frameIdx = int(frameIdx) - 1  # note here I made a mistake, gt is 1-indexed, but out obj_tracking output is 0-indexed
+				# (?) note here I made a mistake, gt is 1-indexed, but out obj_tracking output is 0-indexed
+				#frameIdx = int(frameIdx) - 1
+				frameIdx = int(frameIdx)
 
 				track_id = int(track_id)
 
