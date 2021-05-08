@@ -186,7 +186,7 @@ meva_outdoor_test/ fpnr50_multib8thread_trackout_1280x720_tmot_reid/ --gpuid 0 \
 --vehicle_reid_model reid_models/vehicle_reid_res101.pth \
 --person_reid_model reid_models/person_reid_osnet_market.pth --use_lijun
 ```
-We use person-ReID model trained by the [TorchReID repo](https://kaiyangzhou.github.io/deep-person-reid/MODEL_ZOO) and vehicle-ReID model from the winner of AI City Challenge 2021 of [this repo](https://github.com/KevinQian97/ELECTRICITY-MTMC).
+We use person-ReID model trained by the [TorchReID repo](https://kaiyangzhou.github.io/deep-person-reid/MODEL_ZOO) and vehicle-ReID model from the winner of AI City Challenge 2020 of [this repo](https://github.com/KevinQian97/ELECTRICITY-MTMC).
 
 
 ## Models
