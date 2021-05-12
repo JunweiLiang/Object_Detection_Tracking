@@ -30,6 +30,8 @@ class STrack(BaseTrack):
 
         # use detection box directly
         self.cur_det_tlwh = np.asarray(tlwh, dtype=np.float)
+        # and the detection conf
+        self.cur_det_conf = score
 
     def update_features(self, feat):
         feat /= np.linalg.norm(feat)
@@ -87,6 +89,8 @@ class STrack(BaseTrack):
             self.track_id = self.next_id()
         # save the detection box as well
         self.cur_det_tlwh = new_track.cur_det_tlwh
+        # and the detection conf
+        self.cur_det_conf = new_track.cur_det_conf
 
     def update(self, new_track, frame_id, update_feature=True):
         """
@@ -111,6 +115,8 @@ class STrack(BaseTrack):
 
         # save the detection box as well
         self.cur_det_tlwh = new_track.cur_det_tlwh
+        # and the detection conf
+        self.cur_det_conf = new_track.cur_det_conf
 
     @property
     @jit

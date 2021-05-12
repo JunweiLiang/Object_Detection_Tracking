@@ -270,7 +270,10 @@ if __name__ == "__main__":
           if "trackId" in one:
             trackId = int(one['trackId'])
             color_key = (trackId, one['cat_name'])
-            labels.append("%s: #%s"%(one['cat_name'], trackId))
+            conf = ""
+            if one["score"] != 1.:
+              conf = "%.2f" % one["score"]
+            labels.append("%s #%s %s"%(one['cat_name'], trackId, conf))
             #if not color_assign.has_key(color_key):
             if color_key not in color_assign:
               this_color = color_queue.pop()
@@ -298,8 +301,8 @@ if __name__ == "__main__":
 
       ori_im = cv2.imread(frame, cv2.IMREAD_COLOR)
 
-      new_im = draw_boxes(ori_im, boxes, labels, box_colors, font_scale=1.0,
-                          font_thick=3, box_thick=3, bottom_text=False)
+      new_im = draw_boxes(ori_im, boxes, labels, box_colors, font_scale=0.8,
+                          font_thick=2, box_thick=2, bottom_text=False)
 
       if args.show_frame_num:
         # write the frame idx

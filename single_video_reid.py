@@ -41,6 +41,9 @@ parser.add_argument("--person_reid_model", default=None)
 parser.add_argument("--use_lijun_video_loader", action="store_true")
 parser.add_argument("--use_moviepy", action="store_true")
 
+parser.add_argument("--reject_track_conf_thres", default=-1,
+                    help="whether to reject track with avg conf score lower")
+
 parser.add_argument("--tol_num_frame", default=200, type=int,
                     help="search for tracklet in the next 200/fps seconds.")
 parser.add_argument("--expand_width_p", default=2.0, type=float)
@@ -78,26 +81,35 @@ def valid_box(tlwh, img, min_area=10):
     return False
 
 def preprocess(track_file, tol_num_frame=30,
-               expand_width_p=0.1, expand_height_p=0.1):
+               expand_width_p=0.1, expand_height_p=0.1,
+               reject_track_conf_thres=-1):
 
   # 1. read the tracks
   # assuming sorted by frameid
   data = []
   with open(track_file, "r") as f:
     for line in f:
-      frame_idx, track_id, left, top, width, height, _, _, _, _ = line.strip().split(",")
-      data.append([frame_idx, track_id, left, top, width, height])
+      frame_idx, track_id, left, top, width, height, conf, _, _, _ = line.strip().split(",")
+      data.append([frame_idx, track_id, left, top, width, height, conf])
 
   if not data:
     return [], {}
 
-  data = np.array(data, dtype="float32")  # [N, 6]
+  data = np.array(data, dtype="float32")  # [N, 7]
 
   track_ids = np.unique(data[:, 1]).tolist()
-  track_data = {}  # [num_track, K, 6]
+  track_data = {}  # [num_track, K, 7]
   for track_id in track_ids:
     track_data[track_id] = data[data[:, 1] == track_id, :]
 
+  ori_track_num = len(track_data)
+  if reject_track_conf_thres > 0.:
+    good_track_ids = []
+    for track_id in track_data:
+      avg_conf = np.mean(track_data[track_id][:, 6])
+      if avg_conf > reject_track_conf_thres:
+        good_track_ids.append(track_id)
+    track_data = {track_data[t] for t in good_track_ids}
 
   # 2. find possible linkage tracklet pairs
   # assuming only happens at the end of each tracklet, within a num of frames
@@ -111,7 +123,7 @@ def preprocess(track_file, tol_num_frame=30,
     # against other track's start within tol_num_frame, then check intersection
     # with the expanded box
     end_frame_idx1 = track_data[track_id1][-1, 0]
-    tlwh1 = track_data[track_id1][-1, 2:]  # the last box
+    tlwh1 = track_data[track_id1][-1, 2:6]  # the last box
 
     expanded_tlwh1 = expand_tlwh(
         tlwh1, expand_width_p, expand_height_p)
@@ -123,7 +135,7 @@ def preprocess(track_file, tol_num_frame=30,
         continue
       if start_frame_idx2 - end_frame_idx1 < tol_num_frame:
         # only check the start frame's box for this track
-        tlwh2 = track_data[track_id2][0, 2:]  # the first box
+        tlwh2 = track_data[track_id2][0, 2:6]  # the first box
         box_inter = tlwh_intersection(expanded_tlwh1, tlwh2)
         if box_inter > 0:
           if track_id1 not in possible_pairs:
@@ -138,7 +150,7 @@ def preprocess(track_file, tol_num_frame=30,
               possible_pairs[track_id1].append(
                   [track_id2, start_frame_idx2, end_frame_idx1])
 
-  return track_data, possible_pairs
+  return ori_track_num, track_data, possible_pairs
 
 
 def reid(frame_iter, p_extractor, v_extractor,
@@ -149,7 +161,7 @@ def reid(frame_iter, p_extractor, v_extractor,
          compare_method="min_all"):
   # get new track data for two classes
 
-  # track_data: track_id -> [K, 6], candidates: track_id -> a list of track_ids
+  # track_data: track_id -> [K, 7], candidates: track_id -> a list of track_ids
 
   # 1. get the frame_id=>boxes needed to extract feature based on candidates
   frame_data = {}
@@ -170,7 +182,7 @@ def reid(frame_iter, p_extractor, v_extractor,
       while idx <= len(track_data[query_track_id]) and \
           len(needed_track_boxes[query_key]) < this_box_num_limit:
         # get from the end of the tracklet
-        box = track_data[query_track_id][-idx]  # [6]
+        box = track_data[query_track_id][-idx]  # [7]
         needed_track_boxes[query_key].append(box)
         idx += feature_box_gap
 
@@ -192,7 +204,7 @@ def reid(frame_iter, p_extractor, v_extractor,
           while idx < len(track_data[gallery_track_id]) and \
               len(needed_track_boxes[gallery_key]) < this_box_num_limit:
             # get from the end of the tracklet
-            box = track_data[gallery_track_id][idx]  # [6]
+            box = track_data[gallery_track_id][idx]  # [7]
             needed_track_boxes[gallery_key].append(box)
             idx += feature_box_gap
   get_track_boxes(p_track_data, p_candidates)
@@ -200,9 +212,9 @@ def reid(frame_iter, p_extractor, v_extractor,
 
   for key in needed_track_boxes:
     for box_idx, box in enumerate(needed_track_boxes[key]):
-      # [6],
+      # [7],
       frame_idx = box[0]
-      tlwh = box[2:]
+      tlwh = box[2:6]
 
       if not frame_idx in frame_data:
         frame_data[frame_idx] = []
@@ -354,7 +366,7 @@ def reid(frame_iter, p_extractor, v_extractor,
       print(candidates, merge_map)
     new_track_data = {}
     for track_id in track_data:
-      this_track_data = track_data[track_id][:, :]  # [K, 6]
+      this_track_data = track_data[track_id][:, :]  # [K, 7]
       if track_id in merge_map:
         track_id = merge_map[track_id]
         this_track_data[:, 1] = track_id
@@ -386,8 +398,8 @@ def save_new_track(cat_name, track_data, out_dir, videoname):
       out_file_dir, os.path.splitext(videoname)[0] + ".txt")
   with open(out_file, "w") as fw:
     for row in track_results:
-      line = "%d,%d,%.2f,%.2f,%.2f,%.2f,1,-1,-1,-1" % (
-          row[0], row[1], row[2], row[3], row[4], row[5])
+      line = "%d,%d,%.2f,%.2f,%.2f,%.2f,%.4f,-1,-1,-1" % (
+          row[0], row[1], row[2], row[3], row[4], row[5], row[6])
       fw.write(line + "\n")
 
 if __name__ == "__main__":
@@ -476,10 +488,10 @@ if __name__ == "__main__":
       video_queuer.stop()
       continue
 
-    p_track_data, p_candidates = preprocess(
+    ori_p_track_num, p_track_data, p_candidates = preprocess(
         person_track_file, args.tol_num_frame,
         args.expand_width_p, args.expand_height_p)
-    v_track_data, v_candidates = preprocess(
+    ori_v_track_num, v_track_data, v_candidates = preprocess(
         vehicle_track_file, args.tol_num_frame,
         args.expand_width_p, args.expand_height_p)
 
@@ -498,18 +510,18 @@ if __name__ == "__main__":
 
     if args.debug:
       print("person track %s -> %s" % (
-          len(p_track_data), len(new_p_track_data)))
+          ori_p_track_num, len(new_p_track_data)))
       print("vehicle track %s -> %s" % (
-          len(v_track_data), len(new_v_track_data)))
+          ori_v_track_num, len(new_v_track_data)))
 
     # save new file
 
     save_new_track("Person", new_p_track_data, args.newfilepath, videoname)
     save_new_track("Vehicle", new_v_track_data, args.newfilepath, videoname)
 
-    total_p_track[0] += len(p_track_data)
+    total_p_track[0] += ori_p_track_num
     total_p_track[1] += len(new_p_track_data)
-    total_v_track[0] += len(v_track_data)
+    total_v_track[0] += ori_v_track_num
     total_v_track[1] += len(new_v_track_data)
 
     if not args.use_lijun_video_loader and not args.use_moviepy:

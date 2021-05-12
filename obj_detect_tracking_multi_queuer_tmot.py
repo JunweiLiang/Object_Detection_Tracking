@@ -574,11 +574,12 @@ def run_detect_and_track(args, frame_stack, sess, model, targetid2class,
             tlwh = track.tlwh
           else:
             tlwh = track.cur_det_tlwh
+          det_conf = track.cur_det_conf
 
           track_id = track.track_id
           tracking_results_dict[tracking_obj].append([
               cur_frame, track_id, tlwh[0], tlwh[1], tlwh[2],
-              tlwh[3]])
+              tlwh[3], det_conf])
 
     if obj_out_dir is None:  # not saving the boxes
       continue
@@ -768,8 +769,8 @@ if __name__ == "__main__":
           tracking_results = tracking_data.tolist()
           with open(output_file, "w") as fw:
             for row in tracking_results:
-              line = "%d,%d,%.2f,%.2f,%.2f,%.2f,1,-1,-1,-1" % (
-                  row[0], row[1], row[2], row[3], row[4], row[5])
+              line = "%d,%d,%.2f,%.2f,%.2f,%.2f,%.4f,-1,-1,-1" % (
+                  row[0], row[1], row[2], row[3], row[4], row[5], row[6])
               fw.write(line + "\n")
 
           # reset tracker
