@@ -93,7 +93,7 @@ def preprocess(track_file, tol_num_frame=30,
       data.append([frame_idx, track_id, left, top, width, height, conf])
 
   if not data:
-    return [], {}
+    return 0, [], {}
 
   data = np.array(data, dtype="float32")  # [N, 7]
 
