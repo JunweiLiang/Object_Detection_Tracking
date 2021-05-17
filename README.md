@@ -34,8 +34,17 @@ We utilize state-of-the-art object detection and tracking algorithm in surveilla
   </div>
 </div>
 
+Also supports multi-camera tracking and ReID:
+
+<div align="center">
+  <div style="">
+      <img src="images/multi-camera-reid.gif" height="450px" />
+  </div>
+</div>
+
 ## Updates
-+ [05/2021] Added [TMOT](https://github.com/Zhongdao/Towards-Realtime-MOT) tracking and single video ReID. [Instruction](#tracking-with-tmot-algo-and-ReID)
++ [05/2021] Added multi-camera tracking and ReID. [Instruction.](#tracking-with-tmot-algo-and-ReID)
++ [05/2021] Added [TMOT](https://github.com/Zhongdao/Towards-Realtime-MOT) tracking and single video ReID. [Instruction.](#tracking-with-tmot-algo-and-ReID)
 + [12/2020] Added [multi-thread inferencing](#multi-thread-inferencing), another \~25% speed up.
 + [12/2020] Added [multiple-image batch inferencing](#multiple-image-batch-inferencing), \~30% speed up.
 
@@ -188,6 +197,15 @@ meva_outdoor_test/ fpnr50_multib8thread_trackout_1280x720_tmot_reid/ --gpuid 0 \
 ```
 We use person-ReID model trained by the [TorchReID repo](https://kaiyangzhou.github.io/deep-person-reid/MODEL_ZOO) and vehicle-ReID model from the winner of AI City Challenge 2020 of [this repo](https://github.com/KevinQian97/ELECTRICITY-MTMC).
 
+Now we support multi-camera tracking and ReID as well. The tracks in each video will be compared based on spatial and feature constraints with bipartite matching. But I have only tested this on the [MEVA dataset](https://gitlab.kitware.com/meva/meva-data-repo), as it requires camera models for spatial constraints. More detailed instructions in the future.
+
+```
+$ python multi_video_reid.py fpnr50_multib8thread_trackout_1280x720_tmot_reid/ \
+camera_group.json meva-data-repo/metadata/camera-models/krtd/ top_down_north_up.json \
+videos/ multi_reid_out/ --gpuid 0 --vehicle_reid_model reid_models/vehicle_reid_res101.pth \
+ --person_reid_model reid_models/person_reid_osnet_market.pth --use_lijun \
+ --feature_box_num 100 --feature_box_gap 3 --spatial_dist_tol 100
+```
 
 ## Models
 These are the models you can use for inferencing. The original ActEv annotations can be downloaded from [here](https://next.cs.cmu.edu/data/actev-v1-drop4-yaml.tgz). I will add instruction for training and testing if requested. Click to download each model.
