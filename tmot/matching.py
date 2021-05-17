@@ -1,7 +1,7 @@
 import numpy as np
 import scipy
 from scipy.spatial.distance import cdist
-import lap
+import lap  # 0.4.0
 
 from cython_bbox import bbox_overlaps as bbox_ious
 from . import kalman_filter

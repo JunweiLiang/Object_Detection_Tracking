@@ -6,6 +6,7 @@ import random
 import itertools
 import math
 import threading
+import json
 import sys
 import time
 import os
@@ -40,6 +41,109 @@ from pycocotools.cocoeval import COCOeval
 #from nn import soft_nms, nms
 from generate_anchors import generate_anchors
 
+def valid_box(tlwh, img, min_area=10):
+  x, y, w, h = tlwh
+  area = w * h
+  height, width, _ = img.shape
+  if x >= 0 and y >= 0 and w >= 0 and h >= 0:
+    if x <= width and y <= height and x + w <= width and y + h <= height:
+      if area > min_area:
+        return True
+      else:
+        return False
+    else:
+      return False
+  else:
+    return False
+
+def warp_points(points, homography):
+  # h [3x3], points [3xN] -> [3xN]
+  assert points.shape[0] == 2
+  N = points.shape[1]
+  points = np.concatenate([points, np.ones((1, N), dtype="float")], axis=0)
+  w_x1, w_y1, w_z1 = np.tensordot(homography, points, axes=1)
+  return np.stack([w_x1/w_z1, w_y1/w_z1], axis=0)
+
+def parse_camera_file(file_path):
+
+  if file_path.endswith("json"):
+    with open(file_path) as f:
+      data = json.load(f)
+
+    k3x3 = np.zeros((3, 3), dtype="float")
+    k3x3[0, 0] = data["intrinsic"]["intrinsic_matrix"][0]
+    k3x3[1, 0] = data["intrinsic"]["intrinsic_matrix"][1]
+    k3x3[2, 0] = data["intrinsic"]["intrinsic_matrix"][2]
+    k3x3[0, 1] = data["intrinsic"]["intrinsic_matrix"][3]
+    k3x3[1, 1] = data["intrinsic"]["intrinsic_matrix"][4]
+    k3x3[2, 1] = data["intrinsic"]["intrinsic_matrix"][5]
+    k3x3[0, 2] = data["intrinsic"]["intrinsic_matrix"][6]
+    k3x3[1, 2] = data["intrinsic"]["intrinsic_matrix"][7]
+    k3x3[2, 2] = data["intrinsic"]["intrinsic_matrix"][8]
+
+    rotation = np.identity(3, dtype="float")
+    rotation[0, 0] = data["extrinsic"][0]
+    rotation[1, 0] = data["extrinsic"][1]
+    rotation[2, 0] = data["extrinsic"][2]
+    rotation[0, 1] = data["extrinsic"][4]
+    rotation[1, 1] = data["extrinsic"][5]
+    rotation[2, 1] = data["extrinsic"][6]
+    rotation[0, 2] = data["extrinsic"][8]
+    rotation[1, 2] = data["extrinsic"][9]
+    rotation[2, 2] = data["extrinsic"][10]
+
+    translation = np.zeros((3, 1), dtype="float")
+    translation[0, 0] = data["extrinsic"][12]
+    translation[1, 0] = data["extrinsic"][13]
+    translation[2, 0] = data["extrinsic"][14]
+    return rotation, translation, k3x3
+  else:
+    return parse_camera_krtd(file_path)
+
+
+def parse_camera_krtd(file_path):
+
+
+  k3x3 = np.zeros((3, 3), dtype="float")
+
+  rotation = np.identity(3, dtype="float")
+
+  translation = np.zeros((3, 1), dtype="float")
+
+  with open(file_path) as f:
+    lines = f.readlines()
+
+  k3x3[0, :] = lines[0].strip().split()
+  k3x3[1, :] = lines[1].strip().split()
+  k3x3[2, :] = lines[2].strip().split()
+
+  rotation[0, :] = lines[4].strip().split()
+  rotation[1, :] = lines[5].strip().split()
+  rotation[2, :] = lines[6].strip().split()
+
+  translation[0], translation[1], translation[2] = lines[8].strip().split()
+
+  return rotation, translation, k3x3
+
+def compute_c1_to_c2_homography(c1_r, c1_t, c1_k, c2_r, c2_t, c2_k):
+
+  # https://docs.opencv.org/3.4/d9/dab/tutorial_homography.html
+  # https://en.wikipedia.org/wiki/Homography_(computer_vision)
+
+  normal = np.array([0, 0, 1], dtype="float").reshape((3, 1))
+  normal1 = np.matmul(c1_r, normal)  # 3x1
+  origin = np.array([0, 0, 0], dtype="float").reshape((3, 1))
+  origin1 = np.matmul(c1_r, origin) + c1_t  # 3x1
+  d_inv = 1.0 / np.dot(normal1.squeeze(), origin1.squeeze())  # scalar
+
+  r_1to2 = np.matmul(c2_r, c1_r.T)
+  t_1to2 = np.matmul(c2_r, np.matmul(-c1_r.T, c1_t)) + c2_t  # 3x1
+  homography = r_1to2 + d_inv * np.matmul(t_1to2, normal1.T)  # 3x3
+  homography = np.matmul(c2_k, np.matmul(homography, np.linalg.inv(c1_k)))
+
+  # normalize so that last element is 1
+  homography = homography / homography[2, 2]
+  return homography  # 3x3
 
 def tlwh_intersection(tlwh1, tlwh2):
   # compute intersection area / area of tlwh2
@@ -78,7 +182,7 @@ def expand_tlwh(tlwh, w_p=0.1, h_p=0.1):
 def parse_meva_clip_name(clip_name):
   # assuming no appendix
   date, start_time, end_time, location, camera = clip_name.split(".")
-  return date, end_time.split("-")[0]
+  return date, end_time.split("-")[0], camera
 
 
 class Summary():

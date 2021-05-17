@@ -27,7 +27,7 @@ from enqueuer_thread import VideoEnqueuer
 from diva_io.video import VideoReader
 from moviepy.editor import VideoFileClip
 
-from utils import sec2time
+from utils import sec2time, valid_box
 
 parser = argparse.ArgumentParser()
 parser.add_argument("filepath", help="mot track result path")
@@ -64,21 +64,6 @@ parser.add_argument("--short_edge_size", type=int, default=1080)
 
 parser.add_argument("--debug", action="store_true")
 
-
-def valid_box(tlwh, img, min_area=10):
-  x, y, w, h = tlwh
-  area = w * h
-  height, width, _ = img.shape
-  if x >= 0 and y >= 0 and w >= 0 and h >= 0:
-    if x <= width and y <= height and x + w <= width and y + h <= height:
-      if area > min_area:
-        return True
-      else:
-        return False
-    else:
-      return False
-  else:
-    return False
 
 def preprocess(track_file, tol_num_frame=30,
                expand_width_p=0.1, expand_height_p=0.1,
@@ -441,7 +426,7 @@ if __name__ == "__main__":
         "2018-03-05.13-10-00.13-15-00.bus.G340",
         "2018-03-07.17-25-06.17-30-06.school.G339"]:
       continue
-    date, hr_slot = parse_meva_clip_name(clip_name)
+    date, hr_slot, _ = parse_meva_clip_name(clip_name)
     video_path = os.path.join(args.video_path, date, hr_slot, videoname)
     # start reading video frames now!
     if args.use_lijun_video_loader:

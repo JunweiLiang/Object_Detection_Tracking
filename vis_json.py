@@ -55,6 +55,7 @@ def _parse_hex_color(s):
   return (r, g, b)
 
 COLORS = list(map(_parse_hex_color, PALETTE_HEX))
+
 PALETTE_RGB = np.asarray(COLORS, dtype="int32")
 
 class BoxBase(object):
@@ -227,6 +228,7 @@ if __name__ == "__main__":
                 for line in open(args.videonamelst, "r").readlines()]
 
   color_queue = copy.deepcopy(COLORS)
+  global_color_queue = copy.deepcopy(COLORS)  # for global track ids
   color_assign = {}  # track Id -> / "cat_name" ->
 
   for videoname in tqdm(videonames, ascii=True):
@@ -269,6 +271,8 @@ if __name__ == "__main__":
           #if one.has_key("trackId"):
           if "trackId" in one:
             trackId = int(one['trackId'])
+            if "gid" in one:  # show global tracks
+              global_track_id = int(one["gid"])
             color_key = (trackId, one['cat_name'])
             conf = ""
             if one["score"] != 1.:

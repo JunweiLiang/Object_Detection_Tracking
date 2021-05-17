@@ -704,8 +704,6 @@ if __name__ == "__main__":
         tracking_results_dict = {}
 
         for tracking_obj in tracking_objs:
-          #metric = nn_matching.NearestNeighborDistanceMetric(
-          #    "cosine", args.max_cosine_distance, args.nn_budget)
           tracker_dict[tracking_obj] = JDETracker(
               args.min_confidence, args.track_max_second_lost,
               args.emb_max_dist,
