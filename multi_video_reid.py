@@ -476,6 +476,9 @@ if __name__ == "__main__":
         for j in range(i + 1, len(video_names)):
           tracks1 = tracks[video_names[i]][cat_name]
           tracks2 = tracks[video_names[j]][cat_name]
+
+          # TODO: ignore short tracks?
+
           # some pairs in tracks1 and tracks2 might already be linked in the
           # global track in preivous a -> b, a -> c, so b -> c mapping
           # check and remove the already linked tracks

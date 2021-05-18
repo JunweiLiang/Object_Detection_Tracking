@@ -39,6 +39,8 @@ Also supports multi-camera tracking and ReID:
 <div align="center">
   <div style="">
       <img src="images/multi-camera-reid.gif" height="450px" />
+      <img src="images/vehicle_multi_reid.gif" height="350px" />
+      <img src="images/person_multi_reid.gif" height="350px" />
   </div>
 </div>
 
