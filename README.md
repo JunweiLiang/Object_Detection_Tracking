@@ -40,7 +40,7 @@ Also supports multi-camera tracking and ReID:
   <div style="">
       <img src="images/multi-camera-reid.gif" height="450px" />
       <img src="images/vehicle_multi_reid.gif" height="350px" />
-      <img src="images/person_multi_reid.gif" height="350px" />
+      <img src="images/person_multi_reid2.gif" height="338px" />
   </div>
 </div>
 
@@ -199,7 +199,7 @@ meva_outdoor_test/ fpnr50_multib8thread_trackout_1280x720_tmot_reid/ --gpuid 0 \
 ```
 We use person-ReID model trained by the [TorchReID repo](https://kaiyangzhou.github.io/deep-person-reid/MODEL_ZOO) and vehicle-ReID model from the winner of AI City Challenge 2020 of [this repo](https://github.com/KevinQian97/ELECTRICITY-MTMC).
 
-Now we support multi-camera tracking and ReID as well. The tracks in each video will be compared based on spatial and feature constraints with bipartite matching. But I have only tested this on the [MEVA dataset](https://gitlab.kitware.com/meva/meva-data-repo), as it requires camera models for spatial constraints. More detailed instructions in the future.
+Now we support multi-camera tracking and ReID as well. The tracks in each video will be compared based on spatial and feature constraints with bipartite matching. But I have only tested this on the [MEVA dataset](https://gitlab.kitware.com/meva/meva-data-repo)([Link2](http://mevadata.org/)), as it requires camera models for spatial constraints. More detailed instructions in the future.
 
 ```
 $ python multi_video_reid.py fpnr50_multib8thread_trackout_1280x720_tmot_reid/ \
