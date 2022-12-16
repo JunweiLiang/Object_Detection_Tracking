@@ -45,6 +45,7 @@ Also supports multi-camera tracking and ReID:
 </div>
 
 ## Updates
++ [12/2022] Due to CMU shutting down some servers, I have updated the model/data links. Some models are no longer available.
 + [05/2021] Added multi-camera tracking and ReID. [Instruction.](#tracking-with-tmot-algo-and-ReID)
 + [05/2021] Added [TMOT](https://github.com/Zhongdao/Towards-Realtime-MOT) tracking and single video ReID. [Instruction.](#tracking-with-tmot-algo-and-ReID)
 + [12/2020] Added [multi-thread inferencing](#multi-thread-inferencing), another \~25% speed up.
@@ -54,7 +55,7 @@ Also supports multi-camera tracking and ReID:
 
 + [05/2020] Added [EfficientDet (CVPR 2020)](https://github.com/google/automl/tree/master/efficientdet) for inferencing. The D7 model is reported to be more than 12 mAP better than the Resnet-50 FPN model we used. Modified to be more efficient and tested with Python 2 & 3 and TF 1.15. See example commands and notes [here](COMMANDS.md).
 
-+ [02/2020] We used Resnet-50 FPN model trained on MS-COCO for [MEVA](http://mevadata.org/) activity detection and got a competitive pAUDC of [0.49](images/inf_actev_0.49audc_02-2020.png) on the [leaderboard](https://actev.nist.gov/sdl) with a total processing speed of 0.64x real-time on a 4-GPU machine. The object detection module's processing speed is about 0.125x real-time. \[[Frozen Model](https://aladdin-eax.inf.cs.cmu.edu/shares/diva_obj_detect_models/models/obj_coco_resnet50_partial_tfv1.14_1280x720_rpn300.pb)\] \[[Example Command](COMMANDS.md)\]
++ [02/2020] We used Resnet-50 FPN model trained on MS-COCO for [MEVA](http://mevadata.org/) activity detection and got a competitive pAUDC of [0.49](images/inf_actev_0.49audc_02-2020.png) on the [leaderboard](https://actev.nist.gov/sdl) with a total processing speed of 0.64x real-time on a 4-GPU machine. The object detection module's processing speed is about 0.125x real-time. \[[Frozen Model](https://precognition.team/shares/diva_obj_detect_models/models/obj_coco_resnet50_partial_tfv1.14_1280x720_rpn300.pb)\] \[[Example Command](COMMANDS.md)\]
 
 + [01/2020] We discovered a problem with using OpenCV to extract frames for avi videos. Some avi videos have duplicate frames that are not physically presented in the files but only text instructions to duplicate previous frames. The problem is that OpenCV skip these frames without warning according to [this bug report](https://github.com/opencv/opencv/issues/9053) and [here](https://stackoverflow.com/questions/44488636/opencv-reading-frames-from-videocapture-advances-the-video-to-bizarrely-wrong-l/44551037). Therefore with OpenCV you may get fewer frames which causes the frame index of detection results to be incorrect. Solution: 1. convert the avi videos to mp4 format; 2. use MoviePy or PyAV loader but they are 10% ~ 30% slower than OpenCV frame extraction. See `obj_detect_tracking.py` for implementation.
 
@@ -76,10 +77,10 @@ Other dependencies: numpy; scipy; sklearn; cv2; matplotlib; pycocotools
 ## Inferencing
 1. First download some test videos and the v3 model (v4-v6 models are un-verified models as we don't have a test set with ground truth):
 ```
-$ wget https://aladdin-eax.inf.cs.cmu.edu/shares/diva_obj_detect_models/models/v1-val_testvideos.tgz
+$ wget https://precognition.team/shares/diva_obj_detect_models/v1-val_testvideos.tgz
 $ tar -zxvf v1-val_testvideos.tgz
 $ ls v1-val_testvideos > v1-val_testvideos.lst
-$ wget https://aladdin-eax.inf.cs.cmu.edu/shares/diva_obj_detect_models/models/obj_v3_model.tgz
+$ wget https://precognition.team/shares/diva_obj_detect_models/models/obj_v3_model.tgz
 $ tar -zxvf obj_v3_model.tgz
 ```
 
@@ -93,7 +94,7 @@ To have the object detection output in COCO json format, add `--out_dir test_jso
 To speed it up, try `--frame_gap 8`, and the tracks between detection frames will be linearly interpolated.
 The tracking results will be in `test_track_out/` and in MOTChallenge format.
 
-To run with **EfficientDet** models, download checkpoint from the official [repo](https://github.com/google/automl/tree/master/efficientdet) or [my-d0-snapshot](https://aladdin-eax.inf.cs.cmu.edu/shares/diva_obj_detect_models/models/efficientdet-d0.tar.gz). Then run with `--is_efficientdet` and `--efficientdet_modelname efficientdet-d0`.
+To run with **EfficientDet** models, download checkpoint from the official [repo](https://github.com/google/automl/tree/master/efficientdet) or [my-d0-snapshot](https://precognition.team/shares/diva_obj_detect_models/models/efficientdet-d0.tar.gz). Then run with `--is_efficientdet` and `--efficientdet_modelname efficientdet-d0`.
 
 
 3. You can also run inferencing with frozen graph (See [this](SPEED.md) for instructions of how to pack the model). Change `--model_path obj_v3.pb` and add `--is_load_from_pb`. It is about 30% faster. For running on [MEVA](http://mevadata.org/) dataset (avi videos & indoor scenes) or with [EfficientDet](https://github.com/google/automl/tree/master/efficientdet) models, see examples [here](COMMANDS.md).
@@ -134,7 +135,7 @@ Now you have the tracking visualization videos for both "Person" and "Vehicle" c
 
 1. First download some test videos:
 ```
-$ wget https://aladdin-eax.inf.cs.cmu.edu/shares/diva_obj_detect_models/meva_outdoor_test.tgz
+$ wget https://precognition.team/shares/diva_obj_detect_models/meva_outdoor_test.tgz
 $ tar -zxvf meva_outdoor_test.tgz
 $ ls meva_outdoor_test > meva_outdoor_test.lst
 ```
@@ -215,7 +216,8 @@ These are the models you can use for inferencing. The original ActEv annotations
 <table>
   <tr>
   	<td colspan="6">
-  		<a href="https://aladdin-eax.inf.cs.cmu.edu/shares/diva_obj_detect_models/models/obj_v2_model.tgz">Object v2</a>
+  		<!--<a href="https://aladdin-eax.inf.cs.cmu.edu/shares/diva_obj_detect_models/models/obj_v2_model.tgz">Object v2</a>-->
+      Object v2
   	: Trained on v1-train</td>
   </tr>
   <tr>
@@ -247,7 +249,8 @@ These are the models you can use for inferencing. The original ActEv annotations
 <table>
   <tr>
   	<td colspan="6">
-  		<a href="https://aladdin-eax.inf.cs.cmu.edu/shares/diva_obj_detect_models/models/obj_v3_model.tgz">Object v3</a> (<a href="https://aladdin-eax.inf.cs.cmu.edu/shares/diva_obj_detect_models/models/obj_v3.pb">Frozen Graph for tf v1.13</a>)
+  		<a href="https://precognition.team/shares/diva_obj_detect_models/models/obj_v3_model.tgz">Object v3</a>
+      <!--(<a href="https://aladdin-eax.inf.cs.cmu.edu/shares/diva_obj_detect_models/models/obj_v3.pb">Frozen Graph for tf v1.13</a>)-->
   	: Trained on v1-train, Dilated CNN</td>
   </tr>
   <tr>
@@ -279,7 +282,8 @@ These are the models you can use for inferencing. The original ActEv annotations
 <table>
   <tr>
   	<td colspan="6">
-  		<a href="https://aladdin-eax.inf.cs.cmu.edu/shares/diva_obj_detect_models/models/obj_v4_model.tgz">Object v4</a>
+  		<!--<a href="https://aladdin-eax.inf.cs.cmu.edu/shares/diva_obj_detect_models/models/obj_v4_model.tgz">Object v4</a>-->
+      Object v4
   	: Trained on v1-train & v1-val, Dilated CNN, Class-agnostic</td>
   </tr>
   <tr>
@@ -311,7 +315,7 @@ These are the models you can use for inferencing. The original ActEv annotations
 <table>
   <tr>
   	<td colspan="6">
-  		<a href="https://aladdin-eax.inf.cs.cmu.edu/shares/diva_obj_detect_models/models/obj_v5_model.tgz">Object v5</a>
+  		<a href="https://precognition.team/shares/diva_obj_detect_models/models/obj_v5_model.tgz">Object v5</a>
   	: Trained on v1-train & v1-val, Dilated CNN, Class-agnostic</td>
   </tr>
   <tr>
@@ -343,7 +347,8 @@ These are the models you can use for inferencing. The original ActEv annotations
 <table>
   <tr>
   	<td colspan="6">
-  		<a href="https://aladdin-eax.inf.cs.cmu.edu/shares/diva_obj_detect_models/models/obj_v6_model.tgz">Object v6</a>
+  		<!--<a href="https://aladdin-eax.inf.cs.cmu.edu/shares/diva_obj_detect_models/models/obj_v6_model.tgz">Object v6</a>-->
+      Object v6
   	: Trained on v1-train & v1-val, Squeeze-Excitation CNN, Class-agnostic</td>
   </tr>
   <tr>
@@ -376,7 +381,8 @@ These are the models you can use for inferencing. The original ActEv annotations
 <table>
   <tr>
     <td colspan="6">
-      <a href="https://aladdin-eax.inf.cs.cmu.edu/shares/diva_obj_detect_models/models/obj_coco_tfv1.14.pb">Object COCO</a>
+      <!--<a href="https://aladdin-eax.inf.cs.cmu.edu/shares/diva_obj_detect_models/models/obj_coco_tfv1.14.pb">Object COCO</a>-->
+      Object COCO
     : COCO trained Resnet-101 FPN model. Better for indoor scenes.</td>
   </tr>
   <tr>
@@ -405,7 +411,7 @@ These are the models you can use for inferencing. The original ActEv annotations
   </tr>
   <tr>
     <td colspan="6">
-      <a href="https://aladdin-eax.inf.cs.cmu.edu/shares/diva_obj_detect_models/models/obj_coco_resnet50_partial_tfv1.14_1920x1080_rpn300.pb">Object COCO partial</a>
+      <a href="https://precognition.team/shares/diva_obj_detect_models/models/obj_coco_resnet50_partial_tfv1.14_1920x1080_rpn300.pb">Object COCO partial</a>
     : Same model as above with only Person/Vehicle/Bike classes. Save time on NMS. Use it with `--use_partial_classes`</td>
   </tr>
 </table>
